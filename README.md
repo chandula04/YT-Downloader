@@ -5,6 +5,7 @@ A modern, modular YouTube video and playlist downloader with a clean GUI interfa
 ## Features
 
 - 📹 Download individual YouTube videos or entire playlists
+- 🎨 **NEW: Dynamic UI Layout** - Interface automatically adapts to single video or playlist mode
 - ☑️ **NEW: Individual video selection** - Choose specific videos from playlists
 - � **NEW: Per-video quality selection** - Set different quality for each video
 - 📊 **NEW: Batch download with progress** - Sequential downloads with visual progress

@@ -37,9 +37,13 @@ class PlaylistPanel(ctk.CTkFrame):
         self.controls_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.controls_frame.pack(fill="x", padx=15, pady=(0, 15))  # Increased padding
         
+        # Top row controls
+        top_controls = ctk.CTkFrame(self.controls_frame, fg_color="transparent")
+        top_controls.pack(fill="x", pady=(0, 10))
+        
         # Select All checkbox (larger)
         self.select_all_checkbox = ctk.CTkCheckBox(
-            self.controls_frame,
+            top_controls,
             text="Select All",
             variable=self.select_all_var,
             command=self._on_select_all,
@@ -49,12 +53,48 @@ class PlaylistPanel(ctk.CTkFrame):
         
         # Selected count label (larger and more prominent)
         self.count_label = ctk.CTkLabel(
-            self.controls_frame,
+            top_controls,
             text="0 selected",
             font=("Arial", 12),  # Larger font
             text_color="#CCCCCC"  # Brighter color
         )
         self.count_label.pack(side="right")
+        
+        # Bottom row - bulk quality controls
+        bottom_controls = ctk.CTkFrame(self.controls_frame, fg_color="transparent")
+        bottom_controls.pack(fill="x")
+        
+        # Bulk quality label
+        bulk_quality_label = ctk.CTkLabel(
+            bottom_controls,
+            text="Set Quality for All:",
+            font=("Arial", 12, "bold")
+        )
+        bulk_quality_label.pack(side="left")
+        
+        # Bulk quality selector
+        self.bulk_quality_var = ctk.StringVar(value="Select Quality")
+        self.bulk_quality_combo = ctk.CTkComboBox(
+            bottom_controls,
+            variable=self.bulk_quality_var,
+            values=["Select Quality"],
+            width=150,
+            height=28,
+            font=("Arial", 11),
+            command=self._on_bulk_quality_change
+        )
+        self.bulk_quality_combo.pack(side="left", padx=(10, 0))
+        
+        # Apply button for bulk quality
+        self.apply_bulk_button = ctk.CTkButton(
+            bottom_controls,
+            text="Apply to Selected",
+            width=120,
+            height=28,
+            font=("Arial", 11),
+            command=self._apply_bulk_quality
+        )
+        self.apply_bulk_button.pack(side="right")
         
         # Scrollable frame for playlist items
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -68,8 +108,7 @@ class PlaylistPanel(ctk.CTkFrame):
             playlist: YouTube Playlist object
             youtube_handler: YouTubeHandler instance for getting quality options
         """
-        # Show the panel on the right side using grid (as per user's markup)
-        self.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=0)
+        # Note: Grid positioning is now handled by the main window layout methods
         
         # Update header
         self.header_label.configure(text=f"Playlist: {playlist.title}")
@@ -81,13 +120,22 @@ class PlaylistPanel(ctk.CTkFrame):
         session = network_manager.get_session()
         headers = network_manager.get_headers()
         
+        # Collect all unique quality options for bulk selector
+        all_quality_options = set()
+        
         for i, video in enumerate(playlist.videos):
             try:
                 quality_options = youtube_handler.get_quality_options(video)
+                all_quality_options.update(quality_options)
                 self._add_playlist_item(video, i, session, headers, quality_options)
             except Exception as e:
                 print(f"Error adding playlist item {i}: {e}")
                 continue
+        
+        # Update bulk quality selector with common options
+        if all_quality_options:
+            sorted_options = sorted(list(all_quality_options), key=lambda x: self._quality_sort_key(x))
+            self.bulk_quality_combo.configure(values=sorted_options)
         
         self._update_selection_count()
     
@@ -324,3 +372,49 @@ class PlaylistPanel(ctk.CTkFrame):
                 else:
                     checkbox.configure(text="DONE", text_color="#4CAF50", font=("Arial", 8))   # Completed indicator
                 break
+                
+    def _quality_sort_key(self, quality_string):
+        """
+        Generate sort key for quality options
+        
+        Args:
+            quality_string (str): Quality option string
+            
+        Returns:
+            tuple: Sort key (resolution_num, is_adaptive)
+        """
+        try:
+            if "p" in quality_string:
+                resolution = int(quality_string.split("p")[0].split()[-1])
+                is_adaptive = "Adaptive" in quality_string
+                return (resolution, is_adaptive)
+            else:
+                return (0, False)
+        except:
+            return (0, False)
+    
+    def _on_bulk_quality_change(self, selected_quality):
+        """Handle bulk quality selector change"""
+        pass  # No immediate action needed
+    
+    def _apply_bulk_quality(self):
+        """Apply the selected bulk quality to all selected videos"""
+        bulk_quality = self.bulk_quality_var.get()
+        
+        if bulk_quality == "Select Quality":
+            return
+        
+        # Apply to all selected videos
+        applied_count = 0
+        for item in self.video_items:
+            if item['selected'].get():
+                # Check if this quality is available for this video
+                available_qualities = item['quality_combo'].cget("values")
+                if bulk_quality in available_qualities:
+                    item['quality_combo'].set(bulk_quality)
+                    applied_count += 1
+        
+        if applied_count > 0:
+            # Show feedback
+            self.apply_bulk_button.configure(text=f"Applied to {applied_count}")
+            self.after(2000, lambda: self.apply_bulk_button.configure(text="Apply to Selected"))

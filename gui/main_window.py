@@ -5,8 +5,9 @@ Main application window for YouTube Downloader
 import customtkinter as ctk
 from tkinter import messagebox
 from config.settings import APP_TITLE, WINDOW_GEOMETRY, COLORS
+from config.user_settings import user_settings
 from core import file_manager, YouTubeHandler, DownloadManager
-from gui.components import VideoPreview, PlaylistPanel, ProgressTracker, QualitySelector
+from gui.components import VideoPreview, PlaylistPanel, ProgressTracker, QualitySelector, SettingsDialog
 
 
 class MainWindow(ctk.CTk):
@@ -14,6 +15,9 @@ class MainWindow(ctk.CTk):
     
     def __init__(self):
         super().__init__()
+        
+        # Apply user theme
+        self._apply_theme(user_settings.get_theme())
         
         # Initialize core components
         self.youtube_handler = YouTubeHandler()
@@ -23,10 +27,18 @@ class MainWindow(ctk.CTk):
         
         # Set up window
         self.title(APP_TITLE)
-        self.geometry("1400x800")  # Increased from 1000x700 to accommodate larger playlist
+        self.geometry("1400x800")  # Fixed size window
+        self.resizable(False, False)  # Fixed window mode - cannot resize
+        
+        # Initialize file manager with user's saved path
+        file_manager.set_download_path_direct(user_settings.get_download_path())
+        user_settings.ensure_download_path_exists()
         
         # Initialize UI
         self._setup_ui()
+        
+        # Start with single video layout (full width main panel)
+        self._show_single_video_layout()
         
         # State variables
         self.current_url = ""
@@ -39,19 +51,83 @@ class MainWindow(ctk.CTk):
         self.main_container.pack(fill="both", expand=True, padx=15, pady=15)
         
         # Create main content area using grid for better control
-        self.main_container.grid_columnconfigure(0, weight=1)  # Left panel (video preview)
-        self.main_container.grid_columnconfigure(1, weight=1)  # Right panel (playlist) gets equal space initially
+        self.main_container.grid_columnconfigure(0, weight=1)  # Left panel (always visible)
+        self.main_container.grid_columnconfigure(1, weight=0)  # Right panel (playlist) - initially hidden
         self.main_container.grid_rowconfigure(0, weight=1)
         
-        # Left frame for main controls - wider now
+        # Left frame for main controls - takes full width initially
         self.left_frame = ctk.CTkFrame(self.main_container)
-        self.left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=0)
+        self.left_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
         
-        # Right frame for playlist - positioned on the right as per user's drawing
+        # Right frame for playlist - positioned on the right, initially hidden
         self.playlist_panel = PlaylistPanel(self.main_container)
-        # Initially hidden, will be shown when playlist is loaded
+        # Initially hidden using grid_forget(), will be shown when playlist is loaded
         
         self._setup_left_panel()
+    
+    def _show_single_video_layout(self):
+        """Configure UI layout for single video mode (full width main panel)"""
+        # Hide playlist panel
+        self.playlist_panel.grid_forget()
+        
+        # Configure grid to give full space to left panel
+        self.main_container.grid_columnconfigure(0, weight=1)  # Left panel takes full width
+        self.main_container.grid_columnconfigure(1, weight=0)  # Right panel gets no space
+        
+        # Update left frame to take full width with no right padding
+        self.left_frame.grid_configure(padx=0)
+        
+        # Force layout update
+        self.main_container.update_idletasks()
+        
+    def _show_playlist_layout(self):
+        """Configure UI layout for playlist mode (split layout with playlist panel)"""
+        # Configure grid to split space: 55% main UI, 45% playlist panel
+        self.main_container.grid_columnconfigure(0, weight=55)  # Left panel gets 55% space
+        self.main_container.grid_columnconfigure(1, weight=45)  # Right panel gets 45% space
+        
+        # Show playlist panel
+        self.playlist_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=0)
+        
+        # Update left frame padding to accommodate right panel
+        self.left_frame.grid_configure(padx=(0, 5))
+        
+        # Force layout update
+        self.main_container.update_idletasks()
+        
+    def _on_url_change(self, event):
+        """Handle URL entry changes to reset layout when empty"""
+        url = self.url_entry.get().strip()
+        if not url and self.is_playlist_loaded:
+            # If URL is cleared and we're currently showing a playlist, switch back to single video mode
+            self._show_single_video_layout()
+            self.playlist_panel.hide_playlist()
+            self.is_playlist_loaded = False
+            # Also clear the video preview
+            self.video_preview.pack_forget()
+            
+    def _apply_theme(self, theme_name):
+        """Apply the selected theme"""
+        if theme_name == "light":
+            ctk.set_appearance_mode("light")
+        else:
+            ctk.set_appearance_mode("dark")
+    
+    def _open_settings(self):
+        """Open the settings dialog"""
+        settings_dialog = SettingsDialog(self, on_theme_change=self._apply_theme)
+        # Update path display after dialog closes
+        self.after(100, self._update_path_display)
+    
+    def _update_path_display(self):
+        """Update the path display label"""
+        if hasattr(self, 'path_label'):
+            current_path = user_settings.get_download_path()
+            # Show only the last part of the path if it's too long
+            display_path = current_path
+            if len(current_path) > 50:
+                display_path = "..." + current_path[-47:]
+            self.path_label.configure(text=f"Download Path: {display_path}")
     
     def _setup_left_panel(self):
         """Set up the left panel with main controls"""
@@ -96,7 +172,7 @@ class MainWindow(ctk.CTk):
             width=100,  # Increased width
             height=45,  # Increased height
             font=("Arial", 14), 
-            command=self._set_download_path
+            command=self._open_settings  # Use new settings dialog
         )
         self.settings_button.pack(side="right")
     
@@ -110,6 +186,9 @@ class MainWindow(ctk.CTk):
         
         self.url_entry = ctk.CTkEntry(url_frame, height=45, font=("Arial", 14))  # Larger height
         self.url_entry.pack(fill="x", pady=(0, 12))  # Increased spacing
+        
+        # Bind URL entry to detect changes and reset layout if empty
+        self.url_entry.bind("<KeyRelease>", self._on_url_change)
         
         self.load_button = ctk.CTkButton(
             url_frame, 
@@ -162,9 +241,15 @@ class MainWindow(ctk.CTk):
     
     def _setup_path_display(self):
         """Set up download path display"""
+        current_path = user_settings.get_download_path()
+        # Show only the last part of the path if it's too long
+        display_path = current_path
+        if len(current_path) > 50:
+            display_path = "..." + current_path[-47:]
+            
         self.path_label = ctk.CTkLabel(
             self.left_frame, 
-            text="Download Path: Not set", 
+            text=f"Download Path: {display_path}", 
             font=("Arial", 14),  # Larger font
             text_color=COLORS['text_disabled']
         )
@@ -193,10 +278,16 @@ class MainWindow(ctk.CTk):
                 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load video: {str(e)}")
+            # On error, return to single video layout
+            self._show_single_video_layout()
+            self.is_playlist_loaded = False
     
     def _load_single_video(self, url):
         """Load a single video"""
-        # Hide playlist panel
+        # Switch to single video layout (full width main panel)
+        self._show_single_video_layout()
+        
+        # Hide playlist panel and update state
         self.playlist_panel.hide_playlist()
         self.is_playlist_loaded = False
         
@@ -223,6 +314,9 @@ class MainWindow(ctk.CTk):
         """Load a playlist"""
         # Load playlist
         playlist = self.youtube_handler.load_playlist(url)
+        
+        # Switch to playlist layout (split panel view)
+        self._show_playlist_layout()
         
         # Show playlist panel with quality options
         self.playlist_panel.show_playlist(playlist, self.youtube_handler)

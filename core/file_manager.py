@@ -32,6 +32,15 @@ class FileManager:
                 return True
             return False
     
+    def set_download_path_direct(self, path):
+        """
+        Set the download path directly without dialog
+        
+        Args:
+            path (str): Path to set
+        """
+        self._download_path = path
+    
     def get_download_path(self):
         """
         Get the current download path
