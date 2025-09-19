@@ -4,6 +4,7 @@ FFmpeg handling utilities for video/audio processing
 
 import subprocess
 import os
+from pathlib import Path
 from config.settings import (
     FFMPEG_VIDEO_CODEC, FFMPEG_AUDIO_CODEC, 
     FFMPEG_STRICT_EXPERIMENTAL, MERGE_TIMEOUT
@@ -14,15 +15,34 @@ class FFmpegHandler:
     """Handles FFmpeg operations for video and audio merging"""
     
     @staticmethod
+    def get_ffmpeg_path():
+        """
+        Get the path to FFmpeg executable
+        
+        Returns:
+            str: Path to FFmpeg executable (local first, then system PATH)
+        """
+        # First, try the local FFmpeg installation
+        project_root = Path(__file__).parent.parent
+        local_ffmpeg = project_root / "ffmpeg" / "ffmpeg.exe"
+        
+        if local_ffmpeg.exists():
+            return str(local_ffmpeg)
+        
+        # Fallback to system PATH
+        return "ffmpeg"
+    
+    @staticmethod
     def is_available():
         """
-        Check if FFmpeg is available in the system PATH
+        Check if FFmpeg is available (local or system PATH)
         
         Returns:
             bool: True if FFmpeg is available, False otherwise
         """
+        ffmpeg_path = FFmpegHandler.get_ffmpeg_path()
         try:
-            subprocess.run(['ffmpeg', '-version'], 
+            subprocess.run([ffmpeg_path, '-version'], 
                          capture_output=True, check=True, timeout=5)
             return True
         except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
@@ -43,10 +63,12 @@ class FFmpegHandler:
             subprocess.CalledProcessError: If FFmpeg fails
             subprocess.TimeoutExpired: If FFmpeg takes too long
         """
+        ffmpeg_path = FFmpegHandler.get_ffmpeg_path()
+        
         try:
             # Use FFmpeg to merge video and audio with proper encoding handling
             result = subprocess.run([
-                'ffmpeg', '-i', video_path, '-i', audio_path, 
+                ffmpeg_path, '-i', video_path, '-i', audio_path, 
                 '-c:v', FFMPEG_VIDEO_CODEC, 
                 '-c:a', FFMPEG_AUDIO_CODEC, 
                 '-strict', FFMPEG_STRICT_EXPERIMENTAL, 
@@ -67,7 +89,7 @@ class FFmpegHandler:
             )
         except subprocess.TimeoutExpired:
             raise subprocess.TimeoutExpired(
-                'ffmpeg', MERGE_TIMEOUT, 
+                ffmpeg_path, MERGE_TIMEOUT, 
                 "FFmpeg took too long to process the video"
             )
     

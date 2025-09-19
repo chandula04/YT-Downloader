@@ -24,8 +24,13 @@ A modern, modular YouTube video and playlist downloader with a clean GUI interfa
 ```
 YT Download[python]/
 ├── main.py                     # Application entry point
+├── run.bat                     # Easy-start batch file (Windows)
+├── setup_ffmpeg.py             # Automatic FFmpeg downloader
+├── test_ffmpeg.py             # FFmpeg integration tester
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # Project documentation
+├── ffmpeg/                     # Local FFmpeg installation
+│   └── ffmpeg.exe             # FFmpeg executable (auto-downloaded)
 ├── config/                     # Configuration settings
 │   ├── __init__.py
 │   └── settings.py
@@ -45,22 +50,42 @@ YT Download[python]/
 │       └── video_preview.py   # Video preview widget
 ├── utils/                      # Utility functions
 │   ├── __init__.py
-│   ├── ffmpeg_handler.py      # FFmpeg operations
+│   ├── ffmpeg_handler.py      # FFmpeg operations (local-aware)
 │   ├── helpers.py             # General utilities
 │   └── network.py             # HTTP session management
 └── assets/                     # Static assets (icons, images)
 ```
 
-## Installation
+## Installation & Setup
 
+### 🚀 **Easy Setup (Recommended)**
+1. **Download or clone the project**
+2. **Double-click `run.bat`** - This will automatically:
+   - Install Python dependencies
+   - Download and setup FFmpeg locally
+   - Launch the application
+
+### 📋 **Manual Setup**
 1. **Clone or download the project**
 2. **Install Python dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-3. **Install FFmpeg (optional, for high-quality downloads):**
-   - Download from: https://ffmpeg.org/download.html
-   - Add to your system PATH
+3. **Setup local FFmpeg (automatic):**
+   ```bash
+   python setup_ffmpeg.py
+   ```
+4. **Run the application:**
+   ```bash
+   python main.py
+   ```
+
+## Self-Contained Features
+
+- ✅ **No external FFmpeg installation required** - Downloads automatically to `ffmpeg/` folder
+- ✅ **Portable** - Copy the entire folder to any Windows machine and run
+- ✅ **Automatic setup** - `run.bat` handles everything automatically
+- ✅ **Local dependencies** - FFmpeg is included in the project directory
 
 ## Usage
 
