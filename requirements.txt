@@ -1,0 +1,17 @@
+# YouTube Downloader - Dependencies
+
+# GUI Framework
+customtkinter>=5.2.0
+
+# YouTube downloading
+pytubefix>=6.0.0
+
+# Image processing
+Pillow>=10.0.0
+
+# HTTP requests
+requests>=2.31.0
+urllib3>=2.0.0
+
+# Additional dependencies that might be needed
+# ffmpeg-python>=0.2.0  # Optional: for advanced FFmpeg operations
