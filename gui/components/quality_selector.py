@@ -16,30 +16,35 @@ class QualitySelector(ctk.CTkFrame):
     
     def _setup_ui(self):
         """Set up the UI components"""
-        # Quality selection
+        # Quality selection with more prominent styling
         self.quality_label = ctk.CTkLabel(
             self, 
             text="Quality:", 
-            font=("Arial", 14)
+            font=("Arial", 18, "bold")  # Larger, bold font
         )
-        self.quality_label.pack(anchor="w", pady=(0, 5))
+        self.quality_label.pack(anchor="w", pady=(0, 10))  # More spacing
         
         self.quality_combo = ctk.CTkComboBox(
             self, 
             values=[], 
-            height=40, 
-            font=("Arial", 14)
+            height=50,  # Taller combobox
+            font=("Arial", 16),  # Larger font
+            corner_radius=10,
+            button_color="#4CAF50",  # Green button
+            button_hover_color="#45a049"
         )
-        self.quality_combo.pack(fill="x", pady=(0, 15))
+        self.quality_combo.pack(fill="x", pady=(0, 25))  # More spacing
         
-        # Audio option
+        # Audio option with better styling
         self.audio_var = ctk.BooleanVar()
         self.audio_checkbox = ctk.CTkCheckBox(
             self, 
-            text="Download as MP3", 
+            text="Download as MP3 (Audio Only)", 
             variable=self.audio_var, 
-            font=("Arial", 14), 
-            corner_radius=10
+            font=("Arial", 16, "bold"),  # Larger, bold font
+            corner_radius=12,
+            checkbox_width=24,  # Larger checkbox
+            checkbox_height=24
         )
         self.audio_checkbox.pack(anchor="w")
     

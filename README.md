@@ -74,7 +74,7 @@ python main.py
 3. **For playlists:** Select individual videos using checkboxes and set quality per video
 4. **For single videos:** Select desired quality from the dropdown
 5. **Choose output format** (MP4 video or MP3 audio)
-6. **Set download path** using the settings button (⚙️)
+6. **Set download path** using the settings button
 7. **Click "Download"** for single videos or **"Download Selected"** for playlist batch downloads
 8. **Monitor progress** with real-time updates and individual video status
 

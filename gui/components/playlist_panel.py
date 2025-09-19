@@ -11,11 +11,11 @@ from utils.network import network_manager
 class PlaylistPanel(ctk.CTkFrame):
     """Panel for displaying playlist information and items with selection controls"""
     
-    def __init__(self, parent, width=350, **kwargs):  # Increased width for quality selectors
+    def __init__(self, parent, width=700, **kwargs):  # Increased to match user's marked area
         super().__init__(parent, width=width, **kwargs)
         
-        # Initially hidden
-        self.pack_forget()
+        # Initially hidden using grid_forget instead of pack_forget
+        self.grid_forget()
         
         # Selection state
         self.video_items = []  # List of video item widgets
@@ -29,36 +29,36 @@ class PlaylistPanel(ctk.CTkFrame):
         self.header_label = ctk.CTkLabel(
             self, 
             text="Playlist", 
-            font=("Arial", 16, "bold")
+            font=("Arial", 18, "bold")  # Larger header
         )
-        self.header_label.pack(anchor="w", padx=10, pady=(10, 5))
+        self.header_label.pack(anchor="w", padx=15, pady=(15, 10))  # Increased padding
         
         # Selection controls
         self.controls_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.controls_frame.pack(fill="x", padx=10, pady=(0, 10))
+        self.controls_frame.pack(fill="x", padx=15, pady=(0, 15))  # Increased padding
         
-        # Select All checkbox
+        # Select All checkbox (larger)
         self.select_all_checkbox = ctk.CTkCheckBox(
             self.controls_frame,
             text="Select All",
             variable=self.select_all_var,
             command=self._on_select_all,
-            font=("Arial", 12, "bold")
+            font=("Arial", 14, "bold")  # Larger font
         )
         self.select_all_checkbox.pack(side="left")
         
-        # Selected count label
+        # Selected count label (larger and more prominent)
         self.count_label = ctk.CTkLabel(
             self.controls_frame,
             text="0 selected",
-            font=("Arial", 10),
-            text_color="#AAAAAA"
+            font=("Arial", 12),  # Larger font
+            text_color="#CCCCCC"  # Brighter color
         )
         self.count_label.pack(side="right")
         
         # Scrollable frame for playlist items
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=(0, 15))  # Increased padding
     
     def show_playlist(self, playlist, youtube_handler):
         """
@@ -68,8 +68,8 @@ class PlaylistPanel(ctk.CTkFrame):
             playlist: YouTube Playlist object
             youtube_handler: YouTubeHandler instance for getting quality options
         """
-        # Show the panel
-        self.pack(side="right", fill="y", padx=(10, 0))
+        # Show the panel on the right side using grid (as per user's markup)
+        self.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=0)
         
         # Update header
         self.header_label.configure(text=f"Playlist: {playlist.title}")
@@ -102,19 +102,19 @@ class PlaylistPanel(ctk.CTkFrame):
             headers (dict): HTTP headers
             quality_options (list): Available quality options for this video
         """
-        # Main item container (increased height for quality selector)
+        # Main item container (increased height for better readability)
         item_frame = ctk.CTkFrame(
             self.scroll_frame, 
             fg_color="#2B2B2B", 
             corner_radius=5, 
-            height=80  # Increased height
+            height=110  # Increased from 80 to 110
         )
-        item_frame.pack(fill="x", pady=(0, 8))
+        item_frame.pack(fill="x", pady=(0, 10))  # Increased padding between items
         item_frame.pack_propagate(False)  # Maintain fixed height
         
         # Top row: Checkbox, thumbnail, and video info
         top_frame = ctk.CTkFrame(item_frame, fg_color="transparent")
-        top_frame.pack(fill="x", padx=5, pady=(5, 0))
+        top_frame.pack(fill="x", padx=8, pady=(8, 5))  # Increased padding
         
         # Selection checkbox
         select_var = ctk.BooleanVar()
@@ -125,9 +125,9 @@ class PlaylistPanel(ctk.CTkFrame):
             width=20,
             command=self._on_item_selection_change
         )
-        select_checkbox.pack(side="left", padx=(0, 5))
+        select_checkbox.pack(side="left", padx=(0, 8))  # Increased spacing
         
-        # Thumbnail
+        # Thumbnail (larger size)
         try:
             thumb_response = session.get(
                 video.thumbnail_url, 
@@ -140,56 +140,63 @@ class PlaylistPanel(ctk.CTkFrame):
             
             thumb_data = BytesIO(thumb_response.content)
             thumb_img = Image.open(thumb_data)
-            thumb_img = thumb_img.resize((40, 30), Image.LANCZOS)
+            thumb_img = thumb_img.resize((60, 45), Image.LANCZOS)  # Increased from 40x30 to 60x45
             thumb_ctk = CTkImage(
                 light_image=thumb_img, 
                 dark_image=thumb_img, 
-                size=(40, 30)
+                size=(60, 45)
             )
             
             thumb_label = ctk.CTkLabel(
                 top_frame, 
                 image=thumb_ctk, 
                 text="", 
-                width=40, 
-                height=30
+                width=60, 
+                height=45
             )
             thumb_label.image = thumb_ctk  # Keep reference
-            thumb_label.pack(side="left", padx=(0, 8))
+            thumb_label.pack(side="left", padx=(0, 12))  # Increased spacing
             
         except Exception:
             # Fallback to placeholder if thumbnail fails
             thumb_placeholder = ctk.CTkLabel(
                 top_frame, 
-                text="🎬", 
-                width=40, 
-                height=30
+                text="VIDEO", 
+                width=60,   # Increased size
+                height=45,  # Increased size
+                font=("Arial", 10),  # Larger font
+                fg_color="#3B3B3B"
             )
-            thumb_placeholder.pack(side="left", padx=(0, 8))
+            thumb_placeholder.pack(side="left", padx=(0, 12))
         
         # Video information container
         info_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
         info_frame.pack(side="left", fill="both", expand=True)
         
-        # Title (shortened to fit)
+        # Title (longer and with wrapping)
         title_text = f"{index + 1}. {safe_filename(video.title)}"
-        if len(title_text) > 40:  # Truncate long titles
-            title_text = title_text[:37] + "..."
+        # Don't truncate - let it wrap instead
             
         title_label = ctk.CTkLabel(
             info_frame, 
             text=title_text, 
-            font=("Arial", 10), 
+            font=("Arial", 12, "bold"),  # Larger and bold font
             anchor="w", 
-            justify="left"
+            justify="left",
+            wraplength=350  # Allow text wrapping
         )
-        title_label.pack(anchor="w", fill="x")
+        title_label.pack(anchor="w", fill="x", pady=(0, 5))
         
-        # Duration
+        # Duration and more info
+        duration_str = format_time(video.length)
+        info_text = f"Duration: {duration_str}"
+        if hasattr(video, 'views') and video.views:
+            info_text += f" • Views: {video.views:,}"
+            
         duration_label = ctk.CTkLabel(
             info_frame, 
-            text=format_time(video.length), 
-            font=("Arial", 9), 
+            text=info_text, 
+            font=("Arial", 10), 
             text_color="#AAAAAA", 
             anchor="w"
         )
@@ -197,26 +204,26 @@ class PlaylistPanel(ctk.CTkFrame):
         
         # Bottom row: Quality selector
         bottom_frame = ctk.CTkFrame(item_frame, fg_color="transparent")
-        bottom_frame.pack(fill="x", padx=5, pady=(0, 5))
+        bottom_frame.pack(fill="x", padx=8, pady=(5, 8))  # Increased padding
         
         # Quality label and selector
         quality_label = ctk.CTkLabel(
             bottom_frame,
             text="Quality:",
-            font=("Arial", 9),
-            text_color="#AAAAAA"
+            font=("Arial", 11, "bold"),  # Larger and bold
+            text_color="#CCCCCC"  # Brighter color
         )
-        quality_label.pack(side="left", padx=(25, 5))  # Align with info content
+        quality_label.pack(side="left", padx=(88, 10))  # Align with video title
         
-        # Quality combo box (compact)
+        # Quality combo box (much larger)
         quality_combo = ctk.CTkComboBox(
             bottom_frame,
             values=quality_options,
-            height=25,
-            width=150,
-            font=("Arial", 9)
+            height=32,     # Increased from 25 to 32
+            width=250,     # Increased from 150 to 250
+            font=("Arial", 11)  # Larger font
         )
-        quality_combo.pack(side="left")
+        quality_combo.pack(side="left", fill="x", expand=True, padx=(0, 10))
         
         # Set default to best quality
         if quality_options:
@@ -244,7 +251,7 @@ class PlaylistPanel(ctk.CTkFrame):
     
     def hide_playlist(self):
         """Hide the playlist panel"""
-        self.pack_forget()
+        self.grid_forget()  # Use grid_forget instead of pack_forget
         self.clear_items()
         self.header_label.configure(text="Playlist")
     
@@ -313,7 +320,7 @@ class PlaylistPanel(ctk.CTkFrame):
             if item['index'] == video_index:
                 checkbox = item['checkbox']
                 if is_downloading:
-                    checkbox.configure(text="⬇️", text_color="#4CAF50")  # Downloading indicator
+                    checkbox.configure(text="DOWN", text_color="#4CAF50", font=("Arial", 8))  # Downloading indicator
                 else:
-                    checkbox.configure(text="✓", text_color="#4CAF50")   # Completed indicator
+                    checkbox.configure(text="DONE", text_color="#4CAF50", font=("Arial", 8))   # Completed indicator
                 break

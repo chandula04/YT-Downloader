@@ -23,7 +23,7 @@ class MainWindow(ctk.CTk):
         
         # Set up window
         self.title(APP_TITLE)
-        self.geometry(WINDOW_GEOMETRY)
+        self.geometry("1400x800")  # Increased from 1000x700 to accommodate larger playlist
         
         # Initialize UI
         self._setup_ui()
@@ -36,14 +36,20 @@ class MainWindow(ctk.CTk):
         """Set up the main user interface"""
         # Main container
         self.main_container = ctk.CTkFrame(self)
-        self.main_container.pack(fill="both", expand=True, padx=20, pady=20)
+        self.main_container.pack(fill="both", expand=True, padx=15, pady=15)
         
-        # Left frame for main controls
+        # Create main content area using grid for better control
+        self.main_container.grid_columnconfigure(0, weight=1)  # Left panel (video preview)
+        self.main_container.grid_columnconfigure(1, weight=1)  # Right panel (playlist) gets equal space initially
+        self.main_container.grid_rowconfigure(0, weight=1)
+        
+        # Left frame for main controls - wider now
         self.left_frame = ctk.CTkFrame(self.main_container)
-        self.left_frame.pack(side="left", fill="both", expand=True)
+        self.left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=0)
         
-        # Right frame for playlist (initially hidden)
+        # Right frame for playlist - positioned on the right as per user's drawing
         self.playlist_panel = PlaylistPanel(self.main_container)
+        # Initially hidden, will be shown when playlist is loaded
         
         self._setup_left_panel()
     
@@ -60,11 +66,11 @@ class MainWindow(ctk.CTk):
         
         # Quality selector
         self.quality_selector = QualitySelector(self.left_frame)
-        self.quality_selector.pack(fill="x", pady=(0, 20))
+        self.quality_selector.pack(fill="x", pady=(0, 25))  # Increased spacing
         
         # Progress tracker
         self.progress_tracker = ProgressTracker(self.left_frame)
-        self.progress_tracker.pack(fill="x", pady=(0, 10))
+        self.progress_tracker.pack(fill="x", pady=(0, 15))  # Increased spacing
         
         # Action buttons
         self._setup_buttons()
@@ -75,21 +81,21 @@ class MainWindow(ctk.CTk):
     def _setup_header(self):
         """Set up the application header"""
         header_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(0, 20))
+        header_frame.pack(fill="x", pady=(0, 25))  # Increased spacing
         
         self.title_label = ctk.CTkLabel(
             header_frame, 
             text=APP_TITLE, 
-            font=("Arial", 24, "bold")
+            font=("Arial", 26, "bold")  # Larger title
         )
         self.title_label.pack(side="left")
         
         self.settings_button = ctk.CTkButton(
             header_frame, 
-            text="⚙️", 
-            width=40, 
-            height=40, 
-            font=("Arial", 16), 
+            text="Settings", 
+            width=100,  # Increased width
+            height=45,  # Increased height
+            font=("Arial", 14), 
             command=self._set_download_path
         )
         self.settings_button.pack(side="right")
@@ -97,20 +103,20 @@ class MainWindow(ctk.CTk):
     def _setup_url_input(self):
         """Set up URL input section"""
         url_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
-        url_frame.pack(fill="x", pady=(0, 20))
+        url_frame.pack(fill="x", pady=(0, 25))  # Increased spacing
         
-        url_label = ctk.CTkLabel(url_frame, text="YouTube URL:", font=("Arial", 14))
-        url_label.pack(anchor="w", pady=(0, 5))
+        url_label = ctk.CTkLabel(url_frame, text="YouTube URL:", font=("Arial", 16))  # Larger font
+        url_label.pack(anchor="w", pady=(0, 8))  # Increased spacing
         
-        self.url_entry = ctk.CTkEntry(url_frame, height=40, font=("Arial", 14))
-        self.url_entry.pack(fill="x", pady=(0, 10))
+        self.url_entry = ctk.CTkEntry(url_frame, height=45, font=("Arial", 14))  # Larger height
+        self.url_entry.pack(fill="x", pady=(0, 12))  # Increased spacing
         
         self.load_button = ctk.CTkButton(
             url_frame, 
             text="Load Video", 
             command=self._load_video, 
-            height=40, 
-            font=("Arial", 14)
+            height=45, 
+            font=("Arial", 16)  # Larger font
         )
         self.load_button.pack(fill="x")
     
@@ -123,19 +129,19 @@ class MainWindow(ctk.CTk):
             self.button_frame, 
             text="Download", 
             command=self._download, 
-            height=45, 
-            font=("Arial", 16), 
+            height=50,  # Increased height
+            font=("Arial", 18),  # Larger font
             fg_color=COLORS['primary'], 
             hover_color=COLORS['primary_hover']
         )
-        self.download_button.pack(side="left", padx=(0, 10), fill="x", expand=True)
+        self.download_button.pack(side="left", padx=(0, 5), fill="x", expand=True)
         
         self.download_selected_button = ctk.CTkButton(
             self.button_frame, 
             text="Download Selected", 
             command=self._download_selected, 
-            height=45, 
-            font=("Arial", 16), 
+            height=50,  # Increased height
+            font=("Arial", 18),  # Larger font
             fg_color="#FF9800",  # Orange color for batch download
             hover_color="#F57C00"
         )
@@ -146,8 +152,8 @@ class MainWindow(ctk.CTk):
             self.button_frame, 
             text="Cancel", 
             command=self._cancel_download, 
-            height=45, 
-            font=("Arial", 16), 
+            height=50,  # Increased height
+            font=("Arial", 18),  # Larger font
             fg_color=COLORS['danger'], 
             hover_color=COLORS['danger_hover']
         )
@@ -159,10 +165,10 @@ class MainWindow(ctk.CTk):
         self.path_label = ctk.CTkLabel(
             self.left_frame, 
             text="Download Path: Not set", 
-            font=("Arial", 12), 
+            font=("Arial", 14),  # Larger font
             text_color=COLORS['text_disabled']
         )
-        self.path_label.pack(anchor="w", pady=(15, 0))
+        self.path_label.pack(anchor="w", pady=(20, 0))  # More spacing
     
     def _set_download_path(self):
         """Handle setting download path"""
@@ -315,10 +321,10 @@ class MainWindow(ctk.CTk):
         if self.is_playlist_loaded:
             # Show both buttons for playlists
             self.download_button.pack(side="left", padx=(0, 5), fill="x", expand=True)
-            self.download_selected_button.pack(side="left", padx=(5, 10), fill="x", expand=True)
+            self.download_selected_button.pack(side="left", padx=(5, 0), fill="x", expand=True)
         else:
             # Show only regular download button for single videos
-            self.download_button.pack(side="left", padx=(0, 10), fill="x", expand=True)
+            self.download_button.pack(side="left", fill="x", expand=True)
             self.download_selected_button.pack_forget()
     
     def _set_download_state(self, downloading, batch_mode=False):
@@ -366,6 +372,8 @@ class MainWindow(ctk.CTk):
                 self.playlist_panel.set_downloading_state(video_index, True)
             elif status == 'completed':
                 self.playlist_panel.set_downloading_state(video_index, False)
+    
+    def _cancel_download(self):
         """Handle cancel button click"""
         self.download_manager.cancel_download()
         self.progress_tracker.set_status("Cancelling...")

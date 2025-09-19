@@ -22,48 +22,51 @@ class VideoPreview(ctk.CTkFrame):
     
     def _setup_ui(self):
         """Set up the UI components"""
-        # Header
+        # Header with larger text
         self.preview_header = ctk.CTkLabel(
             self, text="Video Preview", 
-            font=("Arial", 16, "bold")
+            font=("Arial", 20, "bold")  # Larger header
         )
-        self.preview_header.pack(anchor="w", padx=20, pady=(15, 10))
+        self.preview_header.pack(anchor="w", padx=25, pady=(20, 15))  # More padding
         
-        # Content container
+        # Content container with more spacing
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.content_frame.pack(fill="x", padx=20, pady=(0, 15))
+        self.content_frame.pack(fill="both", expand=True, padx=25, pady=(0, 20))  # More padding
         
-        # Thumbnail (larger size)
+        # Thumbnail (much larger size for better visibility)
         self.thumbnail_label = ctk.CTkLabel(
             self.content_frame, 
             text="No video loaded", 
-            width=120, height=90, 
+            width=200, height=150,  # Significantly larger thumbnail
             fg_color="#3B3B3B", 
-            corner_radius=10
+            corner_radius=12,
+            font=("Arial", 14)
         )
-        self.thumbnail_label.pack(side="left", padx=(0, 15))
+        self.thumbnail_label.pack(side="left", padx=(0, 25))  # More spacing
         
         # Video info container
         self.info_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.info_frame.pack(side="left", fill="both", expand=True)
         
-        # Video title
+        # Video title with larger font
         self.title_label = ctk.CTkLabel(
             self.info_frame, 
             text="", 
-            font=("Arial", 16, "bold"), 
-            wraplength=500, 
-            anchor="w"
+            font=("Arial", 18, "bold"),  # Larger title font
+            wraplength=600,  # Wider wrap
+            anchor="w",
+            justify="left"
         )
-        self.title_label.pack(anchor="w", pady=(0, 5))
+        self.title_label.pack(anchor="w", pady=(0, 10))  # More spacing
         
-        # Channel and duration info
+        # Channel and duration info with larger font
         self.channel_label = ctk.CTkLabel(
             self.info_frame, 
             text="", 
-            font=("Arial", 14), 
+            font=("Arial", 16),  # Larger font
             text_color="#AAAAAA", 
-            anchor="w"
+            anchor="w",
+            justify="left"
         )
         self.channel_label.pack(anchor="w")
     
