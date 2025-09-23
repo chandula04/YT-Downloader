@@ -101,14 +101,13 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         path_label.pack(anchor="w", padx=20, pady=(20, 10))
         
-        # Current path display
+        # Current path display (editable)
         self.path_var = ctk.StringVar(value=user_settings.get_download_path())
         self.path_entry = ctk.CTkEntry(
             path_frame,
             textvariable=self.path_var,
             height=40,
-            font=("Arial", 12),
-            state="readonly"
+            font=("Arial", 12)
         )
         self.path_entry.pack(fill="x", padx=20, pady=(0, 10))
         
@@ -166,25 +165,30 @@ class SettingsDialog(ctk.CTkToplevel):
             new_theme = self.theme_var.get()
             old_theme = user_settings.get_theme()
             user_settings.set_theme(new_theme)
-            
+
             # Save path
             new_path = self.path_var.get()
             user_settings.set_download_path(new_path)
-            
+
             # Ensure download path exists
             if not user_settings.ensure_download_path_exists():
                 messagebox.showwarning(
-                    "Warning", 
+                    "Warning",
                     "Could not create the download folder. Please check the path."
                 )
-            
+
             # Apply theme change if needed
-            if new_theme != old_theme and self.on_theme_change:
-                self.on_theme_change(new_theme)
-            
+            if new_theme != old_theme:
+                if self.on_theme_change:
+                    self.on_theme_change(new_theme)
+                else:
+                    # Fallback: apply theme directly
+                    import customtkinter as ctk
+                    ctk.set_appearance_mode(new_theme)
+
             messagebox.showinfo("Success", "Settings saved successfully!")
             self.destroy()
-            
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save settings: {str(e)}")
     
