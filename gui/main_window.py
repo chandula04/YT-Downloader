@@ -25,10 +25,25 @@ class MainWindow(ctk.CTk):
         self.download_manager.set_progress_callback(self._on_progress_update)
         self.download_manager.set_batch_progress_callback(self._on_batch_progress_update)
         
-        # Set up window
+        # Set up responsive window
         self.title(APP_TITLE)
-        self.geometry("1400x800")  # Fixed size window
-        self.resizable(False, False)  # Fixed window mode - cannot resize
+        self._setup_responsive_window()
+        self.resizable(True, True)  # Allow resizing
+        
+        # Set minimum and maximum window sizes
+        self.minsize(800, 600)  # Minimum usable size
+        
+        # Bind window resize events for responsive layout
+        self.bind("<Configure>", self._on_window_resize)
+        
+        # Add keyboard shortcuts for window management
+        self.bind("<F11>", self._toggle_fullscreen)
+        self.bind("<Control-minus>", self._minimize_window)
+        self.bind("<Control-plus>", self._maximize_window)
+        self.bind("<Alt-F4>", self._close_window)
+        
+        # Handle window close event
+        self.protocol("WM_DELETE_WINDOW", self._close_window)
         
         # Initialize file manager with user's saved path
         file_manager.set_download_path_direct(user_settings.get_download_path())
@@ -43,6 +58,102 @@ class MainWindow(ctk.CTk):
         # State variables
         self.current_url = ""
         self.is_playlist_loaded = False
+        self.last_window_state = "normal"
+    
+    def _setup_responsive_window(self):
+        """Setup responsive window with proper sizing for different screen sizes"""
+        # Get screen dimensions
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        
+        # Load saved window geometry if available
+        saved_geometry = user_settings.get("window_geometry", "1400x800")
+        
+        try:
+            # Parse saved geometry
+            if "+" in saved_geometry:
+                size_part, pos_part = saved_geometry.split("+", 1)
+                width, height = map(int, size_part.split("x"))
+                if "+" in pos_part:
+                    x, y = map(int, pos_part.split("+"))
+                else:
+                    x, y = 100, 100
+            else:
+                width, height = map(int, saved_geometry.split("x"))
+                x = (screen_width - width) // 2
+                y = (screen_height - height) // 2
+        except:
+            # Default responsive sizing based on screen size
+            width = min(1400, int(screen_width * 0.8))
+            height = min(900, int(screen_height * 0.8))
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+        
+        # Ensure window fits on screen
+        width = min(width, screen_width - 100)
+        height = min(height, screen_height - 100)
+        
+        # Set window geometry
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Check if window was maximized in previous session
+        if user_settings.get("window_maximized", False):
+            self.state('zoomed')  # Maximize window on Windows
+    
+    def _on_window_resize(self, event):
+        """Handle window resize events for responsive layout"""
+        # Only handle resize events for the main window, not child widgets
+        if event.widget != self:
+            return
+            
+        # Save current window geometry
+        try:
+            geometry = self.geometry()
+            user_settings.set("window_geometry", geometry)
+            
+            # Check if window is maximized
+            current_state = self.state()
+            is_maximized = current_state == 'zoomed'
+            user_settings.set("window_maximized", is_maximized)
+            
+            # Update layout based on new size
+            self._update_responsive_layout()
+            
+        except Exception:
+            pass  # Ignore errors during resize
+    
+    def _update_responsive_layout(self):
+        """Update layout based on current window size"""
+        try:
+            window_width = self.winfo_width()
+            window_height = self.winfo_height()
+            
+            # Adjust layout based on window size
+            if hasattr(self, 'main_container'):
+                # Adjust container padding based on window size
+                if window_width < 1000:
+                    # Smaller padding for smaller windows
+                    self.main_container.configure(corner_radius=8)
+                    padding = 10
+                else:
+                    # Standard padding for larger windows
+                    self.main_container.configure(corner_radius=15)
+                    padding = 15
+                
+                self.main_container.pack_configure(padx=padding, pady=padding)
+                
+                # Adjust playlist panel visibility based on width
+                if hasattr(self, 'playlist_panel') and self.is_playlist_loaded:
+                    if window_width < 1200:
+                        # Hide playlist panel on smaller screens, show toggle button instead
+                        self._show_single_video_layout()
+                        self._create_playlist_toggle()
+                    else:
+                        # Show playlist panel on larger screens
+                        self._show_playlist_layout()
+                        self._hide_playlist_toggle()
+        except Exception:
+            pass  # Ignore layout errors
     
     def _setup_ui(self):
         """Set up the main user interface"""
@@ -94,6 +205,103 @@ class MainWindow(ctk.CTk):
         
         # Force layout update
         self.main_container.update_idletasks()
+        
+    def _create_playlist_toggle(self):
+        """Create a toggle button for playlist panel on smaller screens"""
+        if not hasattr(self, 'playlist_toggle_button'):
+            self.playlist_toggle_button = ctk.CTkButton(
+                self.left_frame,
+                text="📋 Show Playlist",
+                command=self._toggle_playlist_panel,
+                height=35,
+                width=150,
+                font=("Arial", 14, "bold"),
+                corner_radius=8,
+                fg_color="#4CAF50",
+                hover_color="#45a049"
+            )
+        
+        # Position the toggle button
+        if hasattr(self, 'url_frame'):
+            self.playlist_toggle_button.pack(in_=self.url_frame, side="right", padx=(10, 0))
+    
+    def _hide_playlist_toggle(self):
+        """Hide the playlist toggle button"""
+        if hasattr(self, 'playlist_toggle_button'):
+            self.playlist_toggle_button.pack_forget()
+    
+    def _toggle_playlist_panel(self):
+        """Toggle playlist panel visibility on smaller screens"""
+        if hasattr(self, 'playlist_panel_visible') and self.playlist_panel_visible:
+            # Hide playlist panel
+            self.playlist_panel.place_forget()
+            self.playlist_panel_visible = False
+            self.playlist_toggle_button.configure(text="📋 Show Playlist")
+        else:
+            # Show playlist panel as overlay
+            self._show_playlist_overlay()
+            self.playlist_panel_visible = True
+            self.playlist_toggle_button.configure(text="❌ Hide Playlist")
+    
+    def _show_playlist_overlay(self):
+        """Show playlist panel as overlay on smaller screens"""
+        # Get main container position and size
+        x = self.main_container.winfo_x() + 50
+        y = self.main_container.winfo_y() + 100
+        width = min(400, self.winfo_width() - 100)
+        height = self.winfo_height() - 200
+        
+        # Place playlist panel as overlay
+        self.playlist_panel.place(x=x, y=y, width=width, height=height)
+        self.playlist_panel.lift()  # Bring to front
+        
+    def _toggle_fullscreen(self, event=None):
+        """Toggle fullscreen mode (F11)"""
+        current_state = self.state()
+        if current_state == 'zoomed':
+            self.state('normal')
+        else:
+            self.state('zoomed')
+    
+    def _minimize_window(self, event=None):
+        """Minimize window (Ctrl+-)"""
+        self.iconify()
+    
+    def _maximize_window(self, event=None):
+        """Maximize/restore window (Ctrl++)"""
+        current_state = self.state()
+        if current_state == 'zoomed':
+            self.state('normal')
+        else:
+            self.state('zoomed')
+    
+    def _close_window(self, event=None):
+        """Close window with confirmation (Alt+F4)"""
+        if self.download_manager.is_downloading():
+            result = messagebox.askyesno(
+                "Confirm Close",
+                "A download is in progress. Are you sure you want to close the application?\n\nThis will cancel the current download."
+            )
+            if result:
+                self.download_manager.cancel_download()
+                self._save_window_state()
+                self.quit()
+        else:
+            self._save_window_state()
+            self.quit()
+    
+    def _save_window_state(self):
+        """Save current window state before closing"""
+        try:
+            # Save window geometry and state
+            geometry = self.geometry()
+            user_settings.set("window_geometry", geometry)
+            
+            current_state = self.state()
+            is_maximized = current_state == 'zoomed'
+            user_settings.set("window_maximized", is_maximized)
+        except Exception:
+            pass  # Ignore save errors
         
     def _on_url_change(self, event):
         """Handle URL entry changes to reset layout when empty"""
@@ -155,43 +363,88 @@ class MainWindow(ctk.CTk):
         self._setup_path_display()
     
     def _setup_header(self):
-        """Set up the application header"""
+        """Set up the application header with window controls"""
         header_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 25))  # Increased spacing
         
+        # Left side - App title and status
+        left_header = ctk.CTkFrame(header_frame, fg_color="transparent")
+        left_header.pack(side="left", fill="x", expand=True)
+        
         self.title_label = ctk.CTkLabel(
-            header_frame, 
+            left_header, 
             text=APP_TITLE, 
             font=("Arial", 26, "bold")  # Larger title
         )
         self.title_label.pack(side="left")
         
-        self.settings_button = ctk.CTkButton(
-            header_frame, 
-            text="Settings", 
-            width=100,  # Increased width
-            height=45,  # Increased height
-            font=("Arial", 14), 
-            command=self._open_settings  # Use new settings dialog
+        # Window state indicator
+        self.window_state_label = ctk.CTkLabel(
+            left_header,
+            text="📱 Responsive",
+            font=("Arial", 12),
+            text_color="#4CAF50"
         )
-        self.settings_button.pack(side="right")
+        self.window_state_label.pack(side="left", padx=(15, 0))
+        
+        # Right side - Control buttons
+        controls_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        controls_frame.pack(side="right")
+        
+        # Window control buttons
+        self.minimize_btn = ctk.CTkButton(
+            controls_frame,
+            text="🗕",
+            width=35,
+            height=35,
+            font=("Arial", 12),
+            command=self._minimize_window,
+            fg_color="#666666",
+            hover_color="#555555"
+        )
+        self.minimize_btn.pack(side="left", padx=(0, 2))
+        
+        self.maximize_btn = ctk.CTkButton(
+            controls_frame,
+            text="🗖",
+            width=35,
+            height=35,
+            font=("Arial", 12),
+            command=self._maximize_window,
+            fg_color="#666666",
+            hover_color="#555555"
+        )
+        self.maximize_btn.pack(side="left", padx=(0, 2))
+        
+        # Settings button
+        self.settings_button = ctk.CTkButton(
+            controls_frame, 
+            text="⚙️ Settings", 
+            width=110,  # Increased width
+            height=40,  # Increased height
+            font=("Arial", 14), 
+            command=self._open_settings,
+            fg_color="#4CAF50",
+            hover_color="#45a049"
+        )
+        self.settings_button.pack(side="right", padx=(10, 0))
     
     def _setup_url_input(self):
         """Set up URL input section"""
-        url_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
-        url_frame.pack(fill="x", pady=(0, 25))  # Increased spacing
+        self.url_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
+        self.url_frame.pack(fill="x", pady=(0, 25))  # Increased spacing
         
-        url_label = ctk.CTkLabel(url_frame, text="YouTube URL:", font=("Arial", 16))  # Larger font
+        url_label = ctk.CTkLabel(self.url_frame, text="YouTube URL:", font=("Arial", 16))  # Larger font
         url_label.pack(anchor="w", pady=(0, 8))  # Increased spacing
         
-        self.url_entry = ctk.CTkEntry(url_frame, height=45, font=("Arial", 14))  # Larger height
+        self.url_entry = ctk.CTkEntry(self.url_frame, height=45, font=("Arial", 14))  # Larger height
         self.url_entry.pack(fill="x", pady=(0, 12))  # Increased spacing
         
         # Bind URL entry to detect changes and reset layout if empty
         self.url_entry.bind("<KeyRelease>", self._on_url_change)
         
         self.load_button = ctk.CTkButton(
-            url_frame, 
+            self.url_frame, 
             text="Load Video", 
             command=self._load_video, 
             height=45, 

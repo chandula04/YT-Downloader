@@ -23,7 +23,9 @@ class UserSettings:
             "theme": "dark",  # dark or light
             "download_path": str(Path.home() / "Downloads" / "YouTube"),
             "window_geometry": "1400x800",
-            "auto_create_download_folder": True
+            "window_maximized": False,
+            "auto_create_download_folder": True,
+            "remember_window_state": True
         }
         
         # Load or create settings

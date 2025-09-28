@@ -17,6 +17,10 @@ def main():
     ctk.set_appearance_mode(APPEARANCE_MODE)
     ctk.set_default_color_theme(COLOR_THEME)
     
+    # Print startup information
+    print("🚀 YouTube Downloader - Responsive Edition")
+    print("✨ Window Features: Resizable, Minimize/Maximize, Auto-sizing")
+    
     # Create and run the main window
     app = MainWindow()
     app.mainloop()
