@@ -363,71 +363,28 @@ class MainWindow(ctk.CTk):
         self._setup_path_display()
     
     def _setup_header(self):
-        """Set up the application header with window controls"""
+        """Set up the application header"""
         header_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 25))  # Increased spacing
         
-        # Left side - App title and status
-        left_header = ctk.CTkFrame(header_frame, fg_color="transparent")
-        left_header.pack(side="left", fill="x", expand=True)
-        
         self.title_label = ctk.CTkLabel(
-            left_header, 
+            header_frame, 
             text=APP_TITLE, 
             font=("Arial", 26, "bold")  # Larger title
         )
         self.title_label.pack(side="left")
         
-        # Window state indicator
-        self.window_state_label = ctk.CTkLabel(
-            left_header,
-            text="📱 Responsive",
-            font=("Arial", 12),
-            text_color="#4CAF50"
-        )
-        self.window_state_label.pack(side="left", padx=(15, 0))
-        
-        # Right side - Control buttons
-        controls_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        controls_frame.pack(side="right")
-        
-        # Window control buttons
-        self.minimize_btn = ctk.CTkButton(
-            controls_frame,
-            text="🗕",
-            width=35,
-            height=35,
-            font=("Arial", 12),
-            command=self._minimize_window,
-            fg_color="#666666",
-            hover_color="#555555"
-        )
-        self.minimize_btn.pack(side="left", padx=(0, 2))
-        
-        self.maximize_btn = ctk.CTkButton(
-            controls_frame,
-            text="🗖",
-            width=35,
-            height=35,
-            font=("Arial", 12),
-            command=self._maximize_window,
-            fg_color="#666666",
-            hover_color="#555555"
-        )
-        self.maximize_btn.pack(side="left", padx=(0, 2))
-        
-        # Settings button
         self.settings_button = ctk.CTkButton(
-            controls_frame, 
+            header_frame, 
             text="⚙️ Settings", 
-            width=110,  # Increased width
-            height=40,  # Increased height
-            font=("Arial", 14), 
+            width=120,  # Increased width
+            height=45,  # Increased height
+            font=("Arial", 14, "bold"), 
             command=self._open_settings,
             fg_color="#4CAF50",
             hover_color="#45a049"
         )
-        self.settings_button.pack(side="right", padx=(10, 0))
+        self.settings_button.pack(side="right")
     
     def _setup_url_input(self):
         """Set up URL input section"""
