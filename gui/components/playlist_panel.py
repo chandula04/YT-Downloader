@@ -123,14 +123,25 @@ class PlaylistPanel(ctk.CTkFrame):
         # Collect all unique quality options for bulk selector
         all_quality_options = set()
         
+        # Add progress tracking
+        total_videos = len(list(playlist.videos)) if playlist.videos else 0
+        successful_items = 0
+        
         for i, video in enumerate(playlist.videos):
             try:
+                print(f"📝 Processing video {i+1}/{total_videos}: {video.title[:50]}...")
                 quality_options = youtube_handler.get_quality_options(video)
                 all_quality_options.update(quality_options)
                 self._add_playlist_item(video, i, session, headers, quality_options)
+                successful_items += 1
+                print(f"✅ Added video {i+1}")
             except Exception as e:
-                print(f"Error adding playlist item {i}: {e}")
+                print(f"❌ Error adding playlist item {i+1}: {str(e)[:100]}...")
+                # Add error placeholder item
+                self._add_error_playlist_item(i, str(e))
                 continue
+        
+        print(f"🎯 Successfully processed {successful_items}/{total_videos} videos")
         
         # Update bulk quality selector with common options
         if all_quality_options:
@@ -338,6 +349,10 @@ class PlaylistPanel(ctk.CTkFrame):
         """
         selected = []
         for item in self.video_items:
+            # Skip error items (they don't have selectable checkboxes)
+            if item.get('error', False):
+                continue
+                
             if item['selected'].get():
                 selected.append({
                     'video': item['video'],
@@ -354,7 +369,7 @@ class PlaylistPanel(ctk.CTkFrame):
         Returns:
             bool: True if at least one video is selected
         """
-        return any(item['selected'].get() for item in self.video_items)
+        return any(item['selected'].get() for item in self.video_items if not item.get('error', False))
     
     def set_downloading_state(self, video_index, is_downloading=True):
         """
@@ -372,6 +387,52 @@ class PlaylistPanel(ctk.CTkFrame):
                 else:
                     checkbox.configure(text="DONE", text_color="#4CAF50", font=("Arial", 8))   # Completed indicator
                 break
+    
+    def _add_error_playlist_item(self, index, error_message):
+        """Add a placeholder item for videos that couldn't be processed"""
+        # Main item container with error styling
+        item_frame = ctk.CTkFrame(
+            self.scroll_frame, 
+            fg_color="#4A1F1F",  # Reddish background for errors
+            corner_radius=5, 
+            height=80
+        )
+        item_frame.pack(fill="x", pady=(0, 10))
+        item_frame.pack_propagate(False)
+        
+        # Error content
+        error_frame = ctk.CTkFrame(item_frame, fg_color="transparent")
+        error_frame.pack(fill="both", expand=True, padx=8, pady=8)
+        
+        # Error icon and message
+        error_label = ctk.CTkLabel(
+            error_frame,
+            text=f"❌ Video {index+1}: Access Restricted",
+            font=("Arial", 14, "bold"),
+            text_color="#FF6B6B"
+        )
+        error_label.pack(anchor="w")
+        
+        # Error details
+        short_error = error_message[:60] + "..." if len(error_message) > 60 else error_message
+        details_label = ctk.CTkLabel(
+            error_frame,
+            text=f"Reason: {short_error}",
+            font=("Arial", 10),
+            text_color="#CCCCCC"
+        )
+        details_label.pack(anchor="w", pady=(5, 0))
+        
+        # Add to items list but mark as error
+        self.video_items.append({
+            'frame': item_frame,
+            'checkbox': None,
+            'select_var': None,
+            'quality_combo': None,
+            'video': None,
+            'index': index,
+            'error': True
+        })
                 
     def _quality_sort_key(self, quality_string):
         """

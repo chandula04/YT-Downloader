@@ -521,34 +521,77 @@ class MainWindow(ctk.CTk):
         self.quality_selector.set_quality_options(quality_options)
     
     def _load_playlist(self, url):
-        """Load a playlist"""
-        # Load playlist
-        playlist = self.youtube_handler.load_playlist(url)
-        
-        # Switch to playlist layout (split panel view)
-        self._show_playlist_layout()
-        
-        # Show playlist panel with quality options
-        self.playlist_panel.show_playlist(playlist, self.youtube_handler)
-        self.is_playlist_loaded = True
-        
-        # Show the "Download Selected" button
-        self._update_download_buttons()
-        
-        # Load first video for preview
-        if playlist.videos:
-            first_video = playlist.videos[0]
-            video_info = self.youtube_handler.get_video_info(first_video)
-            thumbnail_image = self.youtube_handler.get_thumbnail_image(
-                video_info['thumbnail_url']
+        """Load a playlist with progress indication and error handling"""
+        try:
+            # Show loading message
+            self.load_button.configure(text="Loading Playlist...", state="disabled")
+            self.update_idletasks()
+            
+            # Load playlist
+            playlist = self.youtube_handler.load_playlist(url)
+            
+            # Check if any videos were found
+            video_count = len(list(playlist.videos)) if playlist.videos else 0
+            if video_count == 0:
+                messagebox.showwarning(
+                    "No Accessible Videos", 
+                    "This playlist contains no accessible videos. This might happen if:\n"
+                    "• Videos are private or restricted\n"
+                    "• Videos are age-restricted\n"
+                    "• Videos are not available in your region\n"
+                    "• The playlist is empty or deleted"
+                )
+                return
+            
+            # Switch to playlist layout (split panel view)
+            self._show_playlist_layout()
+            
+            # Show playlist panel with quality options
+            self.playlist_panel.show_playlist(playlist, self.youtube_handler)
+            self.is_playlist_loaded = True
+            
+            # Show the "Download Selected" button
+            self._update_download_buttons()
+            
+            # Load first video for preview
+            if playlist.videos:
+                try:
+                    first_video = list(playlist.videos)[0]
+                    video_info = self.youtube_handler.get_video_info(first_video)
+                    thumbnail_image = self.youtube_handler.get_thumbnail_image(
+                        video_info['thumbnail_url']
+                    )
+                    
+                    # Update UI
+                    self.video_preview.update_video_info(video_info, thumbnail_image)
+                    
+                    # Get quality options from first video
+                    quality_options = self.youtube_handler.get_quality_options(first_video)
+                    self.quality_selector.set_quality_options(quality_options)
+                    
+                except Exception as e:
+                    print(f"Error loading first video preview: {e}")
+                    # Don't fail the entire playlist load for this
+            
+            messagebox.showinfo(
+                "Playlist Loaded", 
+                f"Successfully loaded playlist with {video_count} accessible video(s).\n\n"
+                "Note: Some videos may have been skipped due to access restrictions."
             )
             
-            # Update UI
-            self.video_preview.update_video_info(video_info, thumbnail_image)
-            
-            # Get quality options from first video
-            quality_options = self.youtube_handler.get_quality_options(first_video)
-            self.quality_selector.set_quality_options(quality_options)
+        except Exception as e:
+            messagebox.showerror(
+                "Playlist Load Error", 
+                f"Failed to load playlist:\n{str(e)}\n\n"
+                "This might happen if:\n"
+                "• The playlist URL is invalid\n"
+                "• The playlist is private or deleted\n"
+                "• There's a network connectivity issue\n"
+                "• YouTube is blocking the request"
+            )
+        finally:
+            # Re-enable the load button
+            self.load_button.configure(text="Load Video", state="normal")
     
     def _download(self):
         """Handle download button click"""
