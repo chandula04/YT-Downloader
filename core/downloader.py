@@ -106,23 +106,36 @@ class DownloadManager:
     
     def download_single_video(self, video, quality_str, is_audio, output_path):
         """
-        Download a single video
+        Download a single video using adaptive streams for best quality
         
         Args:
             video (YouTube): YouTube video object
-            quality_str (str): Quality string (e.g., "1080p - Progressive")
+            quality_str (str): Quality string (e.g., "1080p - Adaptive (1.5 GB)" or "720p")
             is_audio (bool): Whether to download as audio only
             output_path (str): Output directory path
         """
-        resolution, stream_type = parse_quality_string(quality_str)
-        
         if is_audio:
             self._download_audio(video, output_path)
         else:
-            if "Progressive" in stream_type:
-                self._download_progressive(video, resolution, output_path)
-            else:
+            # All video downloads now use adaptive streams for best quality
+            if ' - ' in quality_str and 'Adaptive' in quality_str:
+                # Detailed adaptive quality string
+                from utils.helpers import parse_quality_string
+                resolution, stream_type = parse_quality_string(quality_str)
                 self._download_adaptive(video, resolution, output_path)
+            else:
+                # Simplified quality string - get best adaptive stream
+                best_stream = self.youtube_handler.get_best_stream_for_quality(video, quality_str)
+                if not best_stream:
+                    # Fallback to any available adaptive stream
+                    streams = video.streams.filter(file_extension='mp4', adaptive=True, only_video=True)
+                    best_stream = streams.first()
+                
+                if not best_stream:
+                    raise Exception(f"No adaptive stream found for {quality_str}")
+                
+                # Always use adaptive download for best quality
+                self._download_adaptive_stream(best_stream, video, output_path)
     
     def _download_audio(self, video, output_path):
         """Download audio only as MP3"""
@@ -138,22 +151,6 @@ class DownloadManager:
         full_output_path = os.path.join(output_path, output_filename)
         
         audio_stream.download(output_path=output_path, filename=output_filename)
-    
-    def _download_progressive(self, video, resolution, output_path):
-        """Download progressive stream (no FFmpeg needed)"""
-        prog_stream = self.youtube_handler.get_stream_by_quality(
-            video, resolution, "Progressive"
-        )
-        
-        if not prog_stream:
-            raise Exception(f"No progressive stream available for {resolution}")
-        
-        self.current_download_size = prog_stream.filesize
-        video.register_on_progress_callback(self.progress_tracker)
-        
-        # Download directly
-        output_filename = f"{safe_filename(video.title)}.mp4"
-        prog_stream.download(output_path=output_path, filename=output_filename)
     
     def _download_adaptive(self, video, resolution, output_path):
         """Download adaptive streams and merge with FFmpeg"""
@@ -195,6 +192,64 @@ class DownloadManager:
         finally:
             # Clean up temporary files
             self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+    
+    def _download_adaptive_stream(self, video_stream, video, output_path):
+        """Download adaptive stream and merge with audio"""
+        video_title = video.title
+        safe_name = safe_filename(video_title)
+        
+        # Download video stream
+        self.current_download_size = video_stream.filesize if hasattr(video_stream, 'filesize') else 0
+        video.register_on_progress_callback(self.progress_tracker)
+        video_path = video_stream.download(output_path=output_path, filename="video_temp.mp4")
+        
+        # Check if cancelled
+        if self.stop_flag:
+            try:
+                os.remove(video_path)
+            except:
+                pass
+            raise Exception("Download cancelled")
+        
+        # Get audio stream
+        audio_stream = video.streams.filter(only_audio=True, file_extension='mp4').first()
+        if not audio_stream:
+            audio_stream = video.streams.filter(only_audio=True).first()
+        
+        if audio_stream:
+            # Download audio
+            self.current_download_size = audio_stream.filesize if hasattr(audio_stream, 'filesize') else 0
+            audio_path = audio_stream.download(output_path=output_path, filename="audio_temp.mp4")
+            
+            # Check if cancelled
+            if self.stop_flag:
+                try:
+                    os.remove(video_path)
+                    os.remove(audio_path)
+                except:
+                    pass
+                raise Exception("Download cancelled")
+            
+            # Merge using FFmpeg
+            output_file = os.path.join(output_path, safe_name + '.mp4')
+            self.ffmpeg_handler.merge_video_audio(video_path, audio_path, output_file)
+            
+            # Clean up temp files
+            try:
+                os.remove(video_path)
+                os.remove(audio_path)
+            except:
+                pass
+            
+            print(f"✅ Adaptive video merged: {output_file}")
+        else:
+            # No audio available, just rename video file
+            final_path = os.path.join(output_path, safe_name + '.mp4')
+            try:
+                os.rename(video_path, final_path)
+                print(f"✅ Video-only file saved: {final_path}")
+            except:
+                print(f"✅ Video saved: {video_path}")
     
     def download_selected_videos(self, selected_videos, success_callback=None, error_callback=None):
         """
@@ -293,6 +348,8 @@ class DownloadManager:
         except Exception as e:
             if error_callback:
                 error_callback(str(e))
+    
+    def download_playlist(self, playlist_url, quality_str, is_audio, success_callback=None, error_callback=None):
         """
         Download entire playlist
         

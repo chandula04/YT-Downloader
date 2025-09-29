@@ -1,10 +1,10 @@
 # YouTube Downloader - Dependencies
 
 # GUI Framework
-customtkinter>=5.2.0
+customtkinter==5.2.0
 
 # YouTube downloading
-pytubefix>=6.0.0
+pytubefix==6.0.0
 
 # Image processing
 Pillow>=10.0.0

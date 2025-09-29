@@ -104,12 +104,13 @@ class PlaylistPanel(ctk.CTkFrame):
         )
         bulk_quality_label.pack(side="left")
         
-        # Bulk quality selector
+        # Bulk quality selector with simplified options
         self.bulk_quality_var = ctk.StringVar(value="Select Quality")
+        quality_options = ['4K', '2K', '1080p', '720p', '480p', '360p', '144p']
         self.bulk_quality_combo = ctk.CTkComboBox(
             bottom_controls,
             variable=self.bulk_quality_var,
-            values=["Select Quality"],
+            values=quality_options,
             width=150,
             height=28,
             font=("Arial", 11),
@@ -181,6 +182,7 @@ class PlaylistPanel(ctk.CTkFrame):
                 video_info = youtube_handler.get_video_info(video)
                 print(f"📝 Processing: {video_info['title'][:50]}...")
                 
+                # Get detailed quality options for individual video (with sizes and types)
                 quality_options = youtube_handler.get_quality_options(video)
                 all_quality_options.update(quality_options)
                 self._add_playlist_item(video, i, session, headers, quality_options)
@@ -194,11 +196,6 @@ class PlaylistPanel(ctk.CTkFrame):
                 continue
         
         print(f"🎯 Successfully processed {successful_items}/{total_videos} videos")
-        
-        # Update bulk quality selector with common options
-        if all_quality_options:
-            sorted_options = sorted(list(all_quality_options), key=lambda x: self._quality_sort_key(x))
-            self.bulk_quality_combo.configure(values=sorted_options)
         
         self._update_selection_count()
     
@@ -344,9 +341,26 @@ class PlaylistPanel(ctk.CTkFrame):
         )
         quality_combo.pack(side="left", fill="x", expand=True, padx=(0, 10))
         
-        # Set default to best quality
+        # Set default to best 720p adaptive option (highest quality)
         if quality_options:
-            quality_combo.set(quality_options[0])
+            # Look for 720p adaptive options first
+            best_720p = None
+            for option in quality_options:
+                if '720p' in option and 'Adaptive' in option:
+                    best_720p = option
+                    break
+            
+            if best_720p:
+                quality_combo.set(best_720p)
+            else:
+                # Fallback to first adaptive option available
+                for option in quality_options:
+                    if 'Adaptive' in option:
+                        quality_combo.set(option)
+                        break
+                else:
+                    # If no adaptive found, use first available
+                    quality_combo.set(quality_options[0])
         
         # Store item data
         item_data = {
@@ -519,8 +533,64 @@ class PlaylistPanel(ctk.CTkFrame):
             return (0, False)
     
     def _on_bulk_quality_change(self, selected_quality):
-        """Handle bulk quality selector change"""
-        pass  # No immediate action needed
+        """Handle bulk quality selector change and apply to all videos immediately"""
+        if selected_quality == "Select Quality":
+            return
+        
+        # Apply to ALL videos (not just selected ones)
+        applied_count = 0
+        for item in self.video_items:
+            if not item.get('error', False) and item['quality_combo']:
+                try:
+                    # Convert simplified quality to best matching detailed quality for this video
+                    video = item['video']
+                    if video:
+                        from core.youtube_handler import YouTubeHandler
+                        youtube_handler = YouTubeHandler()
+                        detailed_quality = youtube_handler.convert_simplified_to_detailed_quality(video, selected_quality)
+                        
+                        # Check if this detailed quality is available in the dropdown
+                        available_qualities = item['quality_combo'].cget("values")
+                        if detailed_quality in available_qualities:
+                            item['quality_combo'].set(detailed_quality)
+                            applied_count += 1
+                        else:
+                            # Find the closest match by resolution
+                            target_res = selected_quality.replace('2K', '1440p').replace('4K', '2160p')
+                            best_match = None
+                            for qual in available_qualities:
+                                if target_res.replace('p', '') in qual:
+                                    best_match = qual
+                                    break
+                            
+                            if best_match:
+                                item['quality_combo'].set(best_match)
+                                applied_count += 1
+                            else:
+                                # Fallback to first available quality
+                                if available_qualities:
+                                    item['quality_combo'].set(available_qualities[0])
+                                    applied_count += 1
+                except Exception as e:
+                    print(f"Error applying quality to video: {e}")
+                    continue
+        
+        if applied_count > 0:
+            print(f"✅ Applied {selected_quality} quality to {applied_count} videos")
+            
+            # Show temporary feedback
+            original_text = self.bulk_quality_combo.cget("values")
+            temp_values = [f"✅ Applied to {applied_count} videos"]
+            self.bulk_quality_combo.configure(values=temp_values)
+            self.bulk_quality_combo.set(temp_values[0])
+            
+            # Reset after 2 seconds
+            def reset_dropdown():
+                quality_options = ['4K', '2K', '1080p', '720p', '480p', '360p', '144p']
+                self.bulk_quality_combo.configure(values=quality_options)
+                self.bulk_quality_combo.set(selected_quality)
+            
+            self.after(2000, reset_dropdown)
     
     def _apply_bulk_quality(self):
         """Apply the selected bulk quality to all selected videos"""
