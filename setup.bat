@@ -31,7 +31,7 @@ echo Installing required Python packages...
 echo.
 
 echo Installing customtkinter...
-pip install customtkinter==5.2.0
+python -m pip install customtkinter==5.2.0
 if %errorlevel% neq 0 (
     echo Failed to install customtkinter
     pause
@@ -39,7 +39,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Installing pytubefix...
-pip install pytubefix==6.0.0
+python -m pip install pytubefix==6.0.0
 if %errorlevel% neq 0 (
     echo Failed to install pytubefix
     pause
@@ -47,7 +47,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Installing Pillow...
-pip install Pillow>=9.0.0
+python -m pip install Pillow>=9.0.0
 if %errorlevel% neq 0 (
     echo Failed to install Pillow
     pause
@@ -55,7 +55,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Installing requests...
-pip install requests>=2.28.0
+python -m pip install requests>=2.28.0
 if %errorlevel% neq 0 (
     echo Failed to install requests
     pause
@@ -126,7 +126,7 @@ echo - Pillow>=9.0.0
 echo - requests>=2.28.0
 echo.
 echo You can install them manually using:
-echo pip install customtkinter==5.2.0 pytubefix==6.0.0 Pillow requests
+echo python -m pip install customtkinter==5.2.0 pytubefix==6.0.0 Pillow requests
 echo.
 pause
 goto end
