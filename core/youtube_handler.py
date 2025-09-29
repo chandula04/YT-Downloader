@@ -76,10 +76,9 @@ class YouTubeHandler:
             from pytubefix import Playlist
             self.current_playlist = Playlist(url)
             
-            # Pre-filter accessible videos to avoid errors during iteration
-            self.current_playlist = self._filter_accessible_videos(self.current_playlist)
-            
+            # Don't pre-filter, let the UI handle errors during iteration
             return self.current_playlist
+            
         except Exception as e:
             raise Exception(f"Failed to load playlist: {str(e)}")
     
@@ -140,7 +139,7 @@ class YouTubeHandler:
     
     def get_video_info(self, video):
         """
-        Extract video information
+        Extract video information with error handling
         
         Args:
             video (YouTube): YouTube video object
@@ -148,12 +147,48 @@ class YouTubeHandler:
         Returns:
             dict: Video information dictionary
         """
-        return {
-            'title': video.title,
-            'author': video.author,
-            'length': video.length,
-            'thumbnail_url': video.thumbnail_url
-        }
+        try:
+            return {
+                'title': getattr(video, 'title', 'Unknown Title'),
+                'author': getattr(video, 'author', 'Unknown Author'),
+                'length': getattr(video, 'length', 0),
+                'thumbnail_url': getattr(video, 'thumbnail_url', '')
+            }
+        except Exception as e:
+            print(f"Error getting video info: {e}")
+            return {
+                'title': 'Error Loading Video',
+                'author': 'Unknown',
+                'length': 0,
+                'thumbnail_url': ''
+            }
+    
+    def safe_load_video_from_url(self, video_url):
+        """
+        Safely load a video from URL with multiple client strategies
+        
+        Args:
+            video_url (str): YouTube video URL
+            
+        Returns:
+            YouTube: YouTube object or None if failed
+        """
+        clients_to_try = [
+            {"use_oauth": False, "allow_oauth_cache": False},
+            {"client": "ANDROID"},
+            {"client": "TV_EMBED"},
+        ]
+        
+        for client_config in clients_to_try:
+            try:
+                video = YouTube(video_url, **client_config)
+                # Test if we can access basic properties
+                _ = video.title  # This will fail if video is inaccessible
+                return video
+            except Exception:
+                continue
+        
+        return None  # All clients failed
     
     def get_quality_options(self, video):
         """

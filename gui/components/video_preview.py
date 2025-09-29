@@ -8,11 +8,32 @@ from utils.helpers import format_time
 from utils.network import network_manager
 
 
+def get_theme_colors():
+    """Get colors based on current appearance mode"""
+    appearance_mode = ctk.get_appearance_mode()
+    
+    if appearance_mode == "Light":
+        return {
+            'frame_bg': "#F0F0F0",           # Light frame background
+            'secondary_bg': "#E0E0E0",       # Light secondary background
+            'text_primary': "#000000",       # Dark text for light mode
+            'text_secondary': "#666666",     # Secondary text for light mode
+        }
+    else:
+        return {
+            'frame_bg': "#2B2B2B",           # Dark frame background
+            'secondary_bg': "#3B3B3B",       # Dark secondary background  
+            'text_primary': "#FFFFFF",       # Light text for dark mode
+            'text_secondary': "#AAAAAA",     # Secondary text for dark mode
+        }
+
+
 class VideoPreview(ctk.CTkFrame):
     """Video preview widget showing thumbnail and video information"""
     
     def __init__(self, parent, **kwargs):
-        super().__init__(parent, fg_color="#2B2B2B", corner_radius=10, **kwargs)
+        colors = get_theme_colors()
+        super().__init__(parent, fg_color=colors['frame_bg'], corner_radius=10, **kwargs)
         
         # Initially hidden
         self.pack_forget()
@@ -22,10 +43,13 @@ class VideoPreview(ctk.CTkFrame):
     
     def _setup_ui(self):
         """Set up the UI components"""
+        colors = get_theme_colors()
+        
         # Header with larger text
         self.preview_header = ctk.CTkLabel(
             self, text="Video Preview", 
-            font=("Arial", 20, "bold")  # Larger header
+            font=("Arial", 20, "bold"),  # Larger header
+            text_color=colors['text_primary']  # Theme-aware text color
         )
         self.preview_header.pack(anchor="w", padx=25, pady=(20, 15))  # More padding
         
@@ -38,9 +62,10 @@ class VideoPreview(ctk.CTkFrame):
             self.content_frame, 
             text="No video loaded", 
             width=200, height=150,  # Significantly larger thumbnail
-            fg_color="#3B3B3B", 
+            fg_color=colors['secondary_bg'],  # Theme-aware background
             corner_radius=12,
-            font=("Arial", 14)
+            font=("Arial", 14),
+            text_color=colors['text_primary']  # Theme-aware text color
         )
         self.thumbnail_label.pack(side="left", padx=(0, 25))  # More spacing
         
@@ -55,7 +80,8 @@ class VideoPreview(ctk.CTkFrame):
             font=("Arial", 18, "bold"),  # Larger title font
             wraplength=600,  # Wider wrap
             anchor="w",
-            justify="left"
+            justify="left",
+            text_color=colors['text_primary']  # Theme-aware text color
         )
         self.title_label.pack(anchor="w", pady=(0, 10))  # More spacing
         
@@ -64,7 +90,7 @@ class VideoPreview(ctk.CTkFrame):
             self.info_frame, 
             text="", 
             font=("Arial", 16),  # Larger font
-            text_color="#AAAAAA", 
+            text_color=colors['text_secondary'],  # Theme-aware secondary text
             anchor="w",
             justify="left"
         )
@@ -113,3 +139,32 @@ class VideoPreview(ctk.CTkFrame):
         self.channel_label.configure(text="")
         self.thumbnail_label.configure(image=None, text="No video loaded")
         self._current_image = None
+    
+    def refresh_theme(self):
+        """Refresh colors when theme changes"""
+        colors = get_theme_colors()
+        
+        # Update main frame background
+        self.configure(fg_color=colors['frame_bg'])
+        
+        # Update header text color
+        if hasattr(self, 'preview_header'):
+            self.preview_header.configure(text_color=colors['text_primary'])
+        
+        # Update thumbnail background
+        if hasattr(self, 'thumbnail_label'):
+            self.thumbnail_label.configure(
+                fg_color=colors['secondary_bg'],
+                text_color=colors['text_primary']
+            )
+        
+        # Update title text color
+        if hasattr(self, 'title_label'):
+            self.title_label.configure(text_color=colors['text_primary'])
+        
+        # Update channel text color
+        if hasattr(self, 'channel_label'):
+            self.channel_label.configure(text_color=colors['text_secondary'])
+        
+        # Force update
+        self.update_idletasks()

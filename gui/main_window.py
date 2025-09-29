@@ -193,9 +193,9 @@ class MainWindow(ctk.CTk):
         
     def _show_playlist_layout(self):
         """Configure UI layout for playlist mode (split layout with playlist panel)"""
-        # Configure grid to split space: 55% main UI, 45% playlist panel
-        self.main_container.grid_columnconfigure(0, weight=55)  # Left panel gets 55% space
-        self.main_container.grid_columnconfigure(1, weight=45)  # Right panel gets 45% space
+        # Configure grid to split space: 50% main UI, 50% playlist panel
+        self.main_container.grid_columnconfigure(0, weight=50)  # Left panel gets 50% space
+        self.main_container.grid_columnconfigure(1, weight=50)  # Right panel gets 50% space
         
         # Show playlist panel
         self.playlist_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=0)
@@ -320,6 +320,13 @@ class MainWindow(ctk.CTk):
             ctk.set_appearance_mode("light")
         else:
             ctk.set_appearance_mode("dark")
+        
+        # Refresh theme-aware components
+        if hasattr(self, 'playlist_panel'):
+            self.playlist_panel.refresh_theme()
+        
+        if hasattr(self, 'video_preview'):
+            self.video_preview.refresh_theme()
     
     def _open_settings(self):
         """Open the settings dialog"""

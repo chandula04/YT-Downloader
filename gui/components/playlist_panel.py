@@ -8,11 +8,43 @@ from utils.helpers import safe_filename, format_time, resolution_key
 from utils.network import network_manager
 
 
+def get_theme_colors():
+    """Get colors based on current appearance mode"""
+    appearance_mode = ctk.get_appearance_mode()
+    
+    if appearance_mode == "Light":
+        return {
+            'frame_bg': "#EBEBEB",           # Light frame background
+            'item_bg': "#F0F0F0",            # Light item background  
+            'secondary_bg': "#E0E0E0",       # Light secondary background
+            'text_primary': "#000000",       # Dark text for light mode
+            'text_secondary': "#666666",     # Secondary text for light mode
+            'text_accent': "#333333",        # Accent text for light mode
+            'dropdown_hover': "#D0D0D0",     # Light dropdown hover
+            'button_hover': "#1F538D"        # Keep button hover consistent
+        }
+    else:
+        return {
+            'frame_bg': "#2B2B2B",           # Dark frame background
+            'item_bg': "#2B2B2B",            # Dark item background
+            'secondary_bg': "#3B3B3B",       # Dark secondary background  
+            'text_primary': "#FFFFFF",       # Light text for dark mode
+            'text_secondary': "#AAAAAA",     # Secondary text for dark mode
+            'text_accent': "#CCCCCC",        # Accent text for dark mode
+            'dropdown_hover': "#2B2B2B",     # Dark dropdown hover
+            'button_hover': "#1F538D"        # Keep button hover consistent
+        }
+
+
 class PlaylistPanel(ctk.CTkFrame):
     """Panel for displaying playlist information and items with selection controls"""
     
     def __init__(self, parent, width=700, **kwargs):  # Increased to match user's marked area
-        super().__init__(parent, width=width, **kwargs)
+        # Get theme colors
+        colors = get_theme_colors()
+        
+        # Apply theme-aware frame color
+        super().__init__(parent, width=width, fg_color=colors['frame_bg'], **kwargs)
         
         # Initially hidden using grid_forget instead of pack_forget
         self.grid_forget()
@@ -56,7 +88,7 @@ class PlaylistPanel(ctk.CTkFrame):
             top_controls,
             text="0 selected",
             font=("Arial", 12),  # Larger font
-            text_color="#CCCCCC"  # Brighter color
+            text_color=get_theme_colors()['text_accent']  # Theme-aware color
         )
         self.count_label.pack(side="right")
         
@@ -123,20 +155,40 @@ class PlaylistPanel(ctk.CTkFrame):
         # Collect all unique quality options for bulk selector
         all_quality_options = set()
         
-        # Add progress tracking
-        total_videos = len(list(playlist.videos)) if playlist.videos else 0
+        # Add progress tracking - use video_urls instead of videos to avoid errors
+        try:
+            video_urls = list(playlist.video_urls)
+            total_videos = len(video_urls)
+        except Exception as e:
+            print(f"Error getting playlist URLs: {e}")
+            total_videos = 0
+            video_urls = []
+        
+        print(f"📋 Processing {total_videos} videos in playlist...")
         successful_items = 0
         
-        for i, video in enumerate(playlist.videos):
+        for i, video_url in enumerate(video_urls):
             try:
-                print(f"📝 Processing video {i+1}/{total_videos}: {video.title[:50]}...")
+                print(f"📝 Loading video {i+1}/{total_videos}...")
+                
+                # Safely load video using the new method
+                video = youtube_handler.safe_load_video_from_url(video_url)
+                
+                if video is None:
+                    raise Exception("Video is not accessible")
+                
+                # Get video info safely
+                video_info = youtube_handler.get_video_info(video)
+                print(f"📝 Processing: {video_info['title'][:50]}...")
+                
                 quality_options = youtube_handler.get_quality_options(video)
                 all_quality_options.update(quality_options)
                 self._add_playlist_item(video, i, session, headers, quality_options)
                 successful_items += 1
                 print(f"✅ Added video {i+1}")
+                
             except Exception as e:
-                print(f"❌ Error adding playlist item {i+1}: {str(e)[:100]}...")
+                print(f"❌ Error with video {i+1}: {str(e)[:100]}...")
                 # Add error placeholder item
                 self._add_error_playlist_item(i, str(e))
                 continue
@@ -161,14 +213,14 @@ class PlaylistPanel(ctk.CTkFrame):
             headers (dict): HTTP headers
             quality_options (list): Available quality options for this video
         """
-        # Main item container (increased height for better readability)
+        # Main item container (increased height for better readability and dropdown space)
         item_frame = ctk.CTkFrame(
             self.scroll_frame, 
-            fg_color="#2B2B2B", 
+            fg_color=get_theme_colors()['item_bg'],  # Theme-aware background
             corner_radius=5, 
-            height=110  # Increased from 80 to 110
+            height=120  # Increased from 110 to 120 for more space
         )
-        item_frame.pack(fill="x", pady=(0, 10))  # Increased padding between items
+        item_frame.pack(fill="x", pady=(0, 15))  # Increased padding between items for dropdown space
         item_frame.pack_propagate(False)  # Maintain fixed height
         
         # Top row: Checkbox, thumbnail, and video info
@@ -224,17 +276,21 @@ class PlaylistPanel(ctk.CTkFrame):
                 width=60,   # Increased size
                 height=45,  # Increased size
                 font=("Arial", 10),  # Larger font
-                fg_color="#3B3B3B"
+                fg_color=get_theme_colors()['secondary_bg'],  # Theme-aware background
+                text_color=get_theme_colors()['text_primary']  # Theme-aware text
             )
             thumb_placeholder.pack(side="left", padx=(0, 12))
         
-        # Video information container
-        info_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
-        info_frame.pack(side="left", fill="both", expand=True)
+        # Video information container with fixed height to prevent overlap
+        info_frame = ctk.CTkFrame(top_frame, fg_color="transparent", height=50)
+        info_frame.pack(side="left", fill="x", expand=True)
+        info_frame.pack_propagate(False)  # Prevent frame from shrinking
         
-        # Title (longer and with wrapping)
+        # Title (controlled height to prevent overlap)
         title_text = f"{index + 1}. {safe_filename(video.title)}"
-        # Don't truncate - let it wrap instead
+        # Truncate long titles to prevent layout issues
+        if len(title_text) > 60:
+            title_text = title_text[:57] + "..."
             
         title_label = ctk.CTkLabel(
             info_frame, 
@@ -242,9 +298,9 @@ class PlaylistPanel(ctk.CTkFrame):
             font=("Arial", 12, "bold"),  # Larger and bold font
             anchor="w", 
             justify="left",
-            wraplength=350  # Allow text wrapping
+            height=25  # Fixed height
         )
-        title_label.pack(anchor="w", fill="x", pady=(0, 5))
+        title_label.pack(anchor="w", fill="x", pady=(2, 0))
         
         # Duration and more info
         duration_str = format_time(video.length)
@@ -256,31 +312,35 @@ class PlaylistPanel(ctk.CTkFrame):
             info_frame, 
             text=info_text, 
             font=("Arial", 10), 
-            text_color="#AAAAAA", 
-            anchor="w"
+            text_color=get_theme_colors()['text_secondary'],  # Theme-aware secondary text
+            anchor="w",
+            height=20  # Fixed height
         )
-        duration_label.pack(anchor="w")
+        duration_label.pack(anchor="w", pady=(0, 3))
         
-        # Bottom row: Quality selector
-        bottom_frame = ctk.CTkFrame(item_frame, fg_color="transparent")
-        bottom_frame.pack(fill="x", padx=8, pady=(5, 8))  # Increased padding
+        # Bottom row: Quality selector with proper spacing
+        bottom_frame = ctk.CTkFrame(item_frame, fg_color="transparent", height=40)
+        bottom_frame.pack(fill="x", padx=8, pady=(8, 8))  # Increased top padding
+        bottom_frame.pack_propagate(False)  # Prevent frame from shrinking
         
         # Quality label and selector
         quality_label = ctk.CTkLabel(
             bottom_frame,
             text="Quality:",
             font=("Arial", 11, "bold"),  # Larger and bold
-            text_color="#CCCCCC"  # Brighter color
+            text_color=get_theme_colors()['text_accent']  # Theme-aware accent text
         )
         quality_label.pack(side="left", padx=(88, 10))  # Align with video title
         
-        # Quality combo box (much larger)
+        # Quality combo box (improved positioning)
         quality_combo = ctk.CTkComboBox(
             bottom_frame,
             values=quality_options,
             height=32,     # Increased from 25 to 32
             width=250,     # Increased from 150 to 250
-            font=("Arial", 11)  # Larger font
+            font=("Arial", 11),  # Larger font
+            dropdown_hover_color=get_theme_colors()['dropdown_hover'],  # Theme-aware hover
+            button_hover_color=get_theme_colors()['button_hover']       # Better visibility
         )
         quality_combo.pack(side="left", fill="x", expand=True, padx=(0, 10))
         
@@ -390,10 +450,13 @@ class PlaylistPanel(ctk.CTkFrame):
     
     def _add_error_playlist_item(self, index, error_message):
         """Add a placeholder item for videos that couldn't be processed"""
+        colors = get_theme_colors()
+        
         # Main item container with error styling
+        error_bg = "#4A1F1F" if ctk.get_appearance_mode() == "Dark" else "#FFE6E6"  # Theme-aware error background
         item_frame = ctk.CTkFrame(
             self.scroll_frame, 
-            fg_color="#4A1F1F",  # Reddish background for errors
+            fg_color=error_bg,  # Theme-aware error background
             corner_radius=5, 
             height=80
         )
@@ -405,11 +468,12 @@ class PlaylistPanel(ctk.CTkFrame):
         error_frame.pack(fill="both", expand=True, padx=8, pady=8)
         
         # Error icon and message
+        error_text_color = "#FF6B6B" if ctk.get_appearance_mode() == "Dark" else "#CC0000"  # Theme-aware error text
         error_label = ctk.CTkLabel(
             error_frame,
             text=f"❌ Video {index+1}: Access Restricted",
             font=("Arial", 14, "bold"),
-            text_color="#FF6B6B"
+            text_color=error_text_color  # Theme-aware error text color
         )
         error_label.pack(anchor="w")
         
@@ -419,7 +483,7 @@ class PlaylistPanel(ctk.CTkFrame):
             error_frame,
             text=f"Reason: {short_error}",
             font=("Arial", 10),
-            text_color="#CCCCCC"
+            text_color=get_theme_colors()['text_secondary']  # Theme-aware secondary text
         )
         details_label.pack(anchor="w", pady=(5, 0))
         
@@ -479,3 +543,31 @@ class PlaylistPanel(ctk.CTkFrame):
             # Show feedback
             self.apply_bulk_button.configure(text=f"Applied to {applied_count}")
             self.after(2000, lambda: self.apply_bulk_button.configure(text="Apply to Selected"))
+    
+    def refresh_theme(self):
+        """Refresh colors when theme changes"""
+        colors = get_theme_colors()
+        
+        # Update main frame background
+        self.configure(fg_color=colors['frame_bg'])
+        
+        # Update header text color
+        if hasattr(self, 'header_label'):
+            self.header_label.configure(text_color=colors['text_primary'])
+        
+        # Update count label text color  
+        if hasattr(self, 'count_label'):
+            self.count_label.configure(text_color=colors['text_accent'])
+        
+        # Update all video item colors
+        for item in self.video_items:
+            if item.get('error', False):
+                # Error items
+                error_bg = "#4A1F1F" if ctk.get_appearance_mode() == "Dark" else "#FFE6E6"
+                item['frame'].configure(fg_color=error_bg)
+            else:
+                # Normal items
+                item['frame'].configure(fg_color=colors['item_bg'])
+        
+        # Force update
+        self.update_idletasks()
