@@ -33,20 +33,25 @@ python --version
 echo ✅ Python is installed!
 echo.
 
-:: Step 2: Install/Check packages
-echo [Step 2/4] Installing required packages...
-echo This may take a few minutes on first run...
-echo.
+::Step 2: Smart package management
+echo [Step 2/4] Checking required packages...
+echo 🔍 Running smart package check...
+python check_packages.py
+if %errorlevel% neq 0 (
+    echo ⚠️ Package check had issues, trying manual approach...
+    goto manual_install
+) else (
+    echo ✅ Smart package check completed!
+    goto packages_done
+)
 
+:manual_install
+echo 🔄 Fallback to manual installation...
 echo • Installing setuptools (Python 3.13 compatibility)...
 python -m pip install setuptools --quiet >nul 2>&1
 
 echo • Installing CustomTkinter (GUI library)...
 python -m pip install --upgrade customtkinter --quiet >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ⚠️ Standard install failed, trying alternative...
-    python -m pip install customtkinter==5.2.2 --force-reinstall --quiet >nul 2>&1
-)
 
 echo • Installing PyTubeFix (YouTube downloader)...
 python -m pip install --upgrade pytubefix --quiet >nul 2>&1
@@ -57,27 +62,49 @@ python -m pip install Pillow --quiet >nul 2>&1
 echo • Installing Requests (Web requests)...
 python -m pip install requests --quiet >nul 2>&1
 
-echo ✅ All packages ready!
+echo ✅ Manual installation completed!
+
+:packages_done
 echo.
 
-:: Step 3: Check if packages work
-echo [Step 3/4] Verifying installation...
+:: Step 3: Final verification
+echo [Step 3/4] Final verification...
+echo 🔍 Running comprehensive package test...
 
-python -c "import customtkinter" >nul 2>&1
+:: Test all packages together
+python -c "
+try:
+    import customtkinter as ctk
+    import pytubefix
+    import PIL
+    import requests
+    print('✅ All libraries verified and ready!')
+    print('   • CustomTkinter: ' + ctk.__version__)
+    print('   • PyTubeFix: Working')
+    print('   • Pillow: Working') 
+    print('   • Requests: Working')
+except ImportError as e:
+    print('❌ Import error:', str(e))
+    exit(1)
+" 2>&1
+
 if %errorlevel% neq 0 (
-    echo ❌ CustomTkinter failed to load
-    echo Trying to reinstall...
-    python -m pip install --force-reinstall customtkinter==5.2.0
+    echo.
+    echo ⚠️ Some packages failed verification
+    echo 🔄 Attempting emergency reinstall...
+    echo.
+    
+    :: Emergency reinstall of failed packages
+    python -m pip install --force-reinstall setuptools customtkinter pytubefix Pillow requests --quiet
+    
+    echo 🔍 Testing again...
+    python -c "import customtkinter, pytubefix, PIL, requests; print('✅ Emergency fix successful!')" 2>nul
+    if %errorlevel% neq 0 (
+        echo ❌ Packages still have issues - continuing anyway
+        echo 💡 Some features might not work properly
+    )
 )
 
-python -c "import pytubefix" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ❌ PyTubeFix failed to load
-    echo Trying to reinstall...
-    python -m pip install --force-reinstall pytubefix==6.0.0
-)
-
-echo ✅ All libraries verified!
 echo.
 
 :: Step 4: Setup FFmpeg with enhanced compatibility
