@@ -26,9 +26,9 @@ def test_ffmpeg():
     try:
         print("🧪 Testing existing FFmpeg...")
         result = subprocess.run([str(ffmpeg_path), '-version'], 
-                               capture_output=True, timeout=5, text=True)
+                               capture_output=True, timeout=10, text=True)
         
-        if result.returncode == 0:
+        if result.returncode == 0 and 'ffmpeg version' in result.stdout.lower():
             print("✅ FFmpeg is working perfectly!")
             return True, "working"
         else:
@@ -47,14 +47,38 @@ def test_ffmpeg():
         return False, "error"
 
 def clean_ffmpeg():
-    """Remove old FFmpeg"""
+    """Remove old FFmpeg with better error handling"""
     ffmpeg_dir = Path("ffmpeg")
     if ffmpeg_dir.exists():
         try:
-            shutil.rmtree(ffmpeg_dir)
-            print("Removed old FFmpeg")
-        except:
-            print("Warning: Could not remove old FFmpeg")
+            # Try to remove all files first
+            for file in ffmpeg_dir.glob("*"):
+                if file.is_file():
+                    try:
+                        file.unlink()
+                        print(f"🗑️ Removed {file.name}")
+                    except PermissionError:
+                        print(f"⚠️ Could not remove {file.name} (permission denied)")
+                        # Try to make it writable and remove again
+                        try:
+                            file.chmod(0o777)
+                            file.unlink()
+                            print(f"🗑️ Force removed {file.name}")
+                        except:
+                            print(f"❌ Failed to remove {file.name}")
+            
+            # Try to remove directory if empty
+            try:
+                ffmpeg_dir.rmdir()
+                print("🗑️ Removed ffmpeg directory")
+            except OSError:
+                print("📁 FFmpeg directory not empty, will reuse")
+                
+        except Exception as e:
+            print(f"⚠️ Warning: Could not fully clean FFmpeg directory: {e}")
+    
+    # Ensure directory exists
+    ffmpeg_dir.mkdir(exist_ok=True)
 
 def download_ffmpeg(arch):
     """Download correct FFmpeg version with progress indicator"""
@@ -65,7 +89,21 @@ def download_ffmpeg(arch):
     
     try:
         print(f"📥 Downloading FFmpeg for Windows {arch}...")
-        Path("ffmpeg").mkdir(exist_ok=True)
+        
+        # Ensure ffmpeg directory exists and is accessible
+        ffmpeg_dir = Path("ffmpeg")
+        if not ffmpeg_dir.exists():
+            ffmpeg_dir.mkdir(exist_ok=True)
+        
+        # Check if we can write to the directory
+        test_file = ffmpeg_dir / "test_write.tmp"
+        try:
+            test_file.touch()
+            test_file.unlink()
+        except PermissionError:
+            print("❌ Cannot write to ffmpeg directory - permission denied")
+            print("💡 Try running as administrator or check folder permissions")
+            return False
         
         # Download with progress
         response = requests.get(urls[arch], stream=True)
@@ -82,15 +120,36 @@ def download_ffmpeg(arch):
                         print(f"\r📥 Download Progress: {percent:.1f}%", end='', flush=True)
         
         print("\n📦 Extracting FFmpeg...")
+        ffmpeg_found = False
         with zipfile.ZipFile("ffmpeg/temp.zip", 'r') as zip_ref:
+            # First, let's see what files are in the zip
+            all_files = [f.filename for f in zip_ref.filelist]
+            print(f"🔍 Found {len(all_files)} files in archive")
+            
+            # Look for ffmpeg.exe in any subdirectory
             for file in zip_ref.filelist:
-                if file.filename.endswith('ffmpeg.exe'):
+                if file.filename.endswith('ffmpeg.exe') or 'ffmpeg.exe' in file.filename:
+                    print(f"✅ Found FFmpeg at: {file.filename}")
                     with zip_ref.open(file) as source:
                         with open("ffmpeg/ffmpeg.exe", "wb") as target:
                             target.write(source.read())
+                    ffmpeg_found = True
                     break
+            
+            if not ffmpeg_found:
+                # Show first few files to help debug
+                print("❌ FFmpeg.exe not found! Archive contents (first 10 files):")
+                for i, filename in enumerate(all_files[:10]):
+                    print(f"  - {filename}")
+                return False
         
-        os.remove("ffmpeg/temp.zip")
+        # Clean up temp file only if extraction succeeded
+        try:
+            os.remove("ffmpeg/temp.zip")
+            print("🧹 Cleaned up temporary files")
+        except:
+            print("⚠️ Warning: Could not remove temp.zip")
+        
         print("✅ FFmpeg installed successfully!")
         return True
         
@@ -105,12 +164,39 @@ def main():
     # STEP 1: Test current FFmpeg first
     working, status = test_ffmpeg()
     
-    if working:
+    if working and status == "working":
         print("✅ FFmpeg is already working correctly!")
-        print("💡 No action needed - keeping existing FFmpeg")
-        return
+        print("💡 No action needed - launching YouTube Downloader")
+        print("🚀 Skipping download - FFmpeg ready!")
+        return True  # Return True to indicate success
+    
+    # STEP 1.5: Check if we have a temp.zip to extract from
+    temp_zip = Path("ffmpeg/temp.zip")
+    if temp_zip.exists() and status == "missing":
+        print("📦 Found existing download, attempting extraction...")
+        try:
+            with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
+                ffmpeg_found = False
+                for file in zip_ref.filelist:
+                    if 'ffmpeg.exe' in file.filename:
+                        print(f"✅ Extracting: {file.filename}")
+                        with zip_ref.open(file) as source:
+                            with open("ffmpeg/ffmpeg.exe", "wb") as target:
+                                target.write(source.read())
+                        ffmpeg_found = True
+                        break
+                
+                if ffmpeg_found:
+                    temp_zip.unlink()  # Clean up
+                    working, _ = test_ffmpeg()
+                    if working:
+                        print("🎉 Successfully extracted and verified FFmpeg!")
+                        return True
+        except Exception as e:
+            print(f"⚠️ Extraction failed: {e}")
     
     # STEP 2: Only proceed if there's an actual problem
+    print()  # Add spacing
     if status == "missing":
         print("📥 No FFmpeg found - will install fresh copy")
     elif status == "compatibility":
@@ -132,11 +218,14 @@ def main():
         working_after, _ = test_ffmpeg()
         if working_after:
             print("🎉 FFmpeg compatibility issue fixed!")
+            return True
         else:
             print("❌ Still having issues after reinstall")
             print("💡 Manual installation may be required")
+            return False
     else:
         print("❌ Download failed - check internet connection")
+        return False
 
 if __name__ == "__main__":
     main()
