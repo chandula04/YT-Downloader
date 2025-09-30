@@ -4,7 +4,7 @@ color 0A
 cls
 
 :: Enable advanced batch features
-setlocal EnableDelayedExpansion
+setlocal EnableDelayedExpansion EnableExtensions
 
 :: ====================================================
 ::  YouTube Downloader - COMPREHENSIVE SETUP
@@ -15,8 +15,27 @@ setlocal EnableDelayedExpansion
 
 echo.
 echo ██████████████████████████████████████████████████████
-echo ███     YouTube Downloader by Chandula [CMW]      ███
-echo ██████████████████████████████████████████████████████
+echo ███     YouTube Downloader by Chandula [CMW]      ███:: Return the launch result
+echo.
+echo 📞 Support: github.com/chandula04/YT-Downloader
+echo 👨‍💻 Publisher: Chandula [CMW]
+echo.
+echo ==========================================
+echo   SETUP COMPLETE - WINDOW STAYS OPEN
+echo ==========================================
+echo.
+echo This window will NOT close automatically!
+echo Press any key when you're ready to close...
+pause >nul
+
+:end_script
+:: Cleanup any temporary files
+del temp_*.txt >nul 2>&1
+del app_error_log.txt >nul 2>&1
+del error_capture.log >nul 2>&1
+
+endlocal
+exit /b %final_result%███████████████████████████████████████████████████
 echo.
 echo 🛡️ SECURITY & SAFETY:
 echo • Publisher: Chandula [CMW]
@@ -72,7 +91,9 @@ if not exist "main.py" (
     echo 3. Look for: main.py, gui/, core/, utils/ folders
     echo 4. Re-download if files are missing
     echo.
-    goto error_exit
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
 )
 
 echo • main.py: ✅ Found
@@ -121,7 +142,9 @@ if %python_check% neq 0 (
     echo 🌐 Opening Python download page...
     start https://www.python.org/downloads/
     echo.
-    goto error_exit
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
 )
 
 echo • Python executable found at:
@@ -135,9 +158,12 @@ del temp_python_version.txt >nul 2>&1
 
 echo • Python module path test:
 python -c "import sys; print('✅ Python working, module path OK')" 2>nul
-if %errorlevel% neq 0 (
+if %python_check% neq 0 (
     echo ❌ Python installation has issues
-    goto error_exit
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
 )
 
 echo • Pip package manager:
@@ -148,7 +174,10 @@ if %errorlevel% equ 0 (
     del temp_pip_version.txt >nul 2>&1
 ) else (
     echo   ❌ Pip not available - this will cause problems
-    goto error_exit
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
 )
 
 echo.
@@ -519,95 +548,97 @@ echo • Look in Task Manager for python.exe
 echo • Try Alt+Tab to cycle through windows
 echo.
 
-timeout /t 3 /nobreak >nul
+:: Launch the application
+echo 🚀 Starting YouTube Downloader...
+echo.
 
-:: Launch with comprehensive error capture
-python main.py 2>app_error_log.txt
-set launch_result=%errorlevel%
+:: Final check before launch
+if not exist "main.py" (
+    echo ❌ CRITICAL: main.py disappeared during setup!
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
+
+:: Test Python one more time
+python -c "print('Python ready for launch')" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ❌ CRITICAL: Python stopped working during setup!
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
+
+echo ✅ Final checks passed - launching application...
+echo.
+
+:: Simple direct launch with error capture
+python main.py 2>&1
+set final_result=%errorlevel%
+
+echo.
+echo 📊 Application finished with exit code: %final_result%
 
 echo.
 echo 📊 LAUNCH RESULT:
 echo.
 
-if %launch_result% equ 0 (
+if %final_result% equ 0 (
     echo ✅ Application launched successfully!
     echo ✅ YouTube Downloader should now be running
-    
-    if exist app_error_log.txt (
-        for /f %%A in ('type app_error_log.txt ^| find /c /v ""') do set line_count=%%A
-        if !line_count! gtr 0 (
-            echo.
-            echo 📋 Application messages:
-            type app_error_log.txt
-        )
-        del app_error_log.txt >nul 2>&1
-    )
 ) else (
-    echo ❌ Application launch failed (Exit code: %launch_result%)
+    echo ❌ Application launch failed (Exit code: %final_result%)
     echo.
-    
-    if exist app_error_log.txt (
-        echo 📋 Error details:
-        type app_error_log.txt
-        echo.
-    )
-    
-    echo 💡 TROUBLESHOOTING:
-    echo • Try running this script as administrator
-    echo • Temporarily disable antivirus software
-    echo • Check if Windows blocked any files
-    echo • Ensure all project files are in the same folder
-    echo • Contact support with the error details above
+    echo 🔍 COMMON CAUSES:
+    echo • Missing Python packages (despite verification)
+    echo • Import errors in the application code
+    echo • GUI system not available
+    echo • Antivirus blocking the application
+    echo • Python path issues
     echo.
-    
-    goto error_exit
+    echo 💡 IMMEDIATE TROUBLESHOOTING:
+    echo 1. Try: python main.py (manually in command prompt)
+    echo 2. Check if any error messages appear
+    echo 3. Ensure main.py is not corrupted
+    echo 4. Try running as administrator
+    echo 5. Temporarily disable antivirus
+    echo.
 )
 
 echo.
 echo ████████████████████████████████████████████████████████
-echo ███             SETUP COMPLETED SUCCESSFULLY          ███
+echo ███             SETUP COMPLETED WITH RESULTS          ███
 echo ████████████████████████████████████████████████████████
 echo.
-echo 🎉 YouTube Downloader is now ready to use!
+
+if %final_result% equ 0 (
+    echo 🎉 YouTube Downloader should now be running!
+    echo 💡 If you don't see it, check your taskbar or Task Manager
+) else (
+    echo ⚠️ Application launch encountered issues
+    echo 📞 Contact support with error details for help
+)
+
 echo.
 echo 📞 Support: github.com/chandula04/YT-Downloader
 echo 👨‍💻 Publisher: Chandula [CMW]
 echo.
-echo Thank you for using YouTube Downloader!
-echo.
-echo Press any key to close this setup window...
-pause >nul
-goto end_script
-
-:: ============================================================
-:: ERROR HANDLING
-:: ============================================================
-:error_exit
-echo.
-echo ████████████████████████████████████████████████████████
-echo ███                SETUP FAILED                       ███
-echo ████████████████████████████████████████████████████████
-echo.
-echo ❌ Setup could not be completed due to errors above.
-echo.
-echo 💡 NEXT STEPS:
-echo 1. Read the error messages above carefully
-echo 2. Follow the suggested solutions
-echo 3. Try running as administrator
-echo 4. Contact support if problems persist
-echo.
-echo 📞 Support: github.com/chandula04/YT-Downloader
-echo.
-echo Press any key to exit...
+echo CRITICAL: This window will NOT close automatically!
+echo Press any key to close setup window...
 pause >nul
 
-:end_script
-:: Cleanup temporary files
+:: Return the launch result
+exit /b %final_result%
+
+::end_script
+:: Cleanup any temporary files
 del temp_*.txt >nul 2>&1
 del app_error_log.txt >nul 2>&1
+del error_capture.log >nul 2>&1
 
 endlocal
-exit /b %launch_result%
 
 :: Step 1: Check Python
 echo [Step 1/4] Checking Python...

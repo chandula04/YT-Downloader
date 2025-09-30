@@ -1,0 +1,202 @@
+YouTube Downloader Advanced Diagnostic Report ,8datetime:~8,6.txt
+Generated: Tue 09/30/2025 11:24:49.28 ,8datetime:~8,6.txt
+Publisher: Chandula [CMW] ,8datetime:~8,6.txt
+================================================ ,8datetime:~8,6.txt
+ ,8datetime:~8,6.txt
+SYSTEM ENVIRONMENT: ,8datetime:~8,6.txt
+• Computer Name: ACER-NITRO-V15 ,8datetime:~8,6.txt
+• Username: chand ,8datetime:~8,6.txt
+• Windows Version: ,8datetime:~8,6.txt
+
+Microsoft Windows [Version 10.0.26100.6584]
+• Processor: AMD64 ,8datetime:~8,6.txt
+• Current Directory: D:\CMW [''-'']\C Projects\VS Code\My Project\YT Download[python] ,8datetime:~8,6.txt
+• Script Location: D:\CMW [''-'']\C Projects\VS Code\My Project\YT Download[python]\ ,8datetime:~8,6.txt
+• PATH Variable: ,8datetime:~8,6.txt
+C:\Program Files\Python313\;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\Git\cmd;C:\Program Files\Java\jre1.8.0_461\bin;C:\Program Files\Java\jdk-24\bin;C:\Program Files\Git\bin;C:\Program Files\nodejs\;C:\Users\chand\flutter\bin;C:\Users\chand\AppData\Roaming\Python\Python313\Scripts;C:\Program Files\Git LFS;C:\Users\chand\AppData\Local\Microsoft\WindowsApps;C:\Users\chand\AppData\Local\Programs\Microsoft VS Code\bin;C:\Program Files\Java\jre1.8.0_461\bin;C:\Program Files\Java\jdk-24\bin;C:\Program Files\Git\bin;C:\Users\chand\AppData\Roaming\npm;C:\Program Files\nodejs\;C:\Program Files\Python313\;C:\Users\chand\flutter\bin;C:\Users\chand\AppData\Roaming\Python\Python313\Scripts;C:\xampp\php;C:\Users\chand\AppData\Local\ComposerSetup\bin;C:\Users\chand\AppData\Roaming\Composer\vendor\bin ,8datetime:~8,6.txt
+ ,8datetime:~8,6.txt
+DIRECTORY STRUCTURE: ,8datetime:~8,6.txt
+Current directory contents: ,8datetime:~8,6.txt
+ Volume in drive D is CMW
+ Volume Serial Number is 40AE-D7BA
+
+ Directory of D:\CMW [''-'']\C Projects\VS Code\My Project\YT Download[python]
+
+
+ Directory of D:\CMW [''-'']\C Projects\VS Code\My Project\YT Download[python]
+
+File Not Found
+ ,8datetime:~8,6.txt
+Python files in directory: ,8datetime:~8,6.txt
+ Volume in drive D is CMW
+ Volume Serial Number is 40AE-D7BA
+
+ Directory of D:\CMW [''-'']\C Projects\VS Code\My Project\YT Download[python]
+
+09/30/2025  10:29 AM             2,429 check_packages.py
+09/28/2025  08:06 PM               886 main.py
+09/30/2025  10:27 AM             6,018 setup_ffmpeg.py
+09/30/2025  09:52 AM             1,997 test_8k.py
+09/30/2025  09:25 AM             1,810 update_pytubefix.py
+
+ Directory of D:\CMW [''-'']\C Projects\VS Code\My Project\YT Download[python]
+
+
+ Directory of D:\CMW [''-'']\C Projects\VS Code\My Project\YT Download[python]
+
+               5 File(s)         13,140 bytes
+               0 Dir(s)  536,156,114,944 bytes free
+ ,8datetime:~8,6.txt
+Required project folders: ,8datetime:~8,6.txt
+• gui: EXISTS ,8datetime:~8,6.txt
+  Contents of gui: ,8datetime:~8,6.txt
+components
+main_window.py
+__init__.py
+__pycache__
+File Not Found
+ ,8datetime:~8,6.txt
+• core: EXISTS ,8datetime:~8,6.txt
+  Contents of core: ,8datetime:~8,6.txt
+downloader.py
+file_manager.py
+youtube_handler.py
+__init__.py
+__pycache__
+File Not Found
+ ,8datetime:~8,6.txt
+• utils: EXISTS ,8datetime:~8,6.txt
+  Contents of utils: ,8datetime:~8,6.txt
+ffmpeg_handler.py
+helpers.py
+network.py
+__init__.py
+__pycache__
+File Not Found
+ ,8datetime:~8,6.txt
+• config: EXISTS ,8datetime:~8,6.txt
+  Contents of config: ,8datetime:~8,6.txt
+settings.py
+user_settings.py
+__init__.py
+__pycache__
+File Not Found
+ ,8datetime:~8,6.txt
+• ffmpeg: EXISTS ,8datetime:~8,6.txt
+  Contents of ffmpeg: ,8datetime:~8,6.txt
+ffmpeg.exe
+File Not Found
+ ,8datetime:~8,6.txt
+PYTHON INSTALLATION: ,8datetime:~8,6.txt
+Python location: ,8datetime:~8,6.txt
+C:\Program Files\Python313\python.exe
+C:\Users\chand\AppData\Local\Microsoft\WindowsApps\python.exe
+INFO: Could not find ",8datetime:~8,6.txt".
+ ,8datetime:~8,6.txt
+Python version: ,8datetime:~8,6.txt
+Python 3.13.7
+Python exit code: 0 ,8datetime:~8,6.txt
+ ,8datetime:~8,6.txt
+Python executable path: ,8datetime:~8,6.txt
+Executable: C:\Program Files\Python313\python.exe
+ ,8datetime:~8,6.txt
+Python installation details: ,8datetime:~8,6.txt
+Version: 3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]
+Platform: win32
+Architecture: 64-bit
+ ,8datetime:~8,6.txt
+Python module search path: ,8datetime:~8,6.txt
+   C:\Program Files\Python313\python313.zip
+   C:\Program Files\Python313\DLLs
+   C:\Program Files\Python313\Lib
+   C:\Program Files\Python313
+   C:\Users\chand\AppData\Roaming\Python\Python313\site-packages
+   C:\Program Files\Python313\Lib\site-packages
+ ,8datetime:~8,6.txt
+PIP INFORMATION: ,8datetime:~8,6.txt
+pip 25.2 from C:\Program Files\Python313\Lib\site-packages\pip (python 3.13)
+ ,8datetime:~8,6.txt
+Pip configuration: ,8datetime:~8,6.txt
+ERROR: Got unexpected number of arguments, expected 0. (example: "C:\Program Files\Python313\python.exe -m pip config list")
+ ,8datetime:~8,6.txt
+INSTALLED PACKAGES: ,8datetime:~8,6.txt
+Package                   Version
+------------------------- -----------
+aiohappyeyeballs          2.6.1
+aiohttp                   3.12.15
+aiosignal                 1.4.0
+altgraph                  0.17.4
+attrs                     25.3.0
+bitarray                  3.7.1
+bitstring                 4.3.1
+bottle                    0.13.4
+Brotli                    1.1.0
+certifi                   2025.8.3
+cffi                      1.17.1
+charset-normalizer        3.4.3
+click                     8.2.1
+clr_loader                0.2.7.post0
+colorama                  0.4.6
+cryptography              45.0.7
+customtkinter             5.2.2
+darkdetect                0.8.0
+decorator                 4.4.2
+esptool                   5.0.2
+frozenlist                1.7.0
+idna                      3.10
+imageio                   2.37.0
+imageio-ffmpeg            0.6.0
+intelhex                  2.3.0
+markdown-it-py            4.0.0
+mdurl                     0.1.2
+moviepy                   1.0.3
+multidict                 6.6.4
+mutagen                   1.47.0
+numpy                     2.3.2
+packaging                 25.0
+pefile                    2023.2.7
+pillow                    11.3.0
+pip                       25.2
+proglog                   0.1.12
+propcache                 0.3.2
+proxy_tools               0.1.0
+pycparser                 2.22
+pycryptodomex             3.23.0
+Pygments                  2.19.2
+pyinstaller               6.15.0
+pyinstaller-hooks-contrib 2025.8
+pyserial                  3.5
+pythonnet                 3.0.5
+pytubefix                 9.5.1
+pywebview                 6.0
+pywin32-ctypes            0.2.3
+PyYAML                    6.0.2
+reedsolo                  1.7.0
+requests                  2.32.5
+rich                      14.1.0
+rich-click                1.8.9
+setuptools                80.9.0
+tqdm                      4.66.1
+typing_extensions         4.15.0
+urllib3                   2.5.0
+websockets                15.0.1
+yarl                      1.20.1
+yt-dlp                    2025.9.5
+ ,8datetime:~8,6.txt
+Package locations: ,8datetime:~8,6.txt
+Site packages:
+   C:\Program Files\Python313
+   C:\Program Files\Python313\Lib\site-packages
+ ,8datetime:~8,6.txt
+PACKAGE IMPORT TESTS: ,8datetime:~8,6.txt
+Testing tkinter (GUI base): ,8datetime:~8,6.txt
+ ,8datetime:~8,6.txt
+Testing customtkinter (Modern GUI): ,8datetime:~8,6.txt
+ ,8datetime:~8,6.txt
+Testing pytubefix (YouTube downloader): ,8datetime:~8,6.txt
+ ,8datetime:~8,6.txt
+Testing PIL/Pillow (Image processing): ,8datetime:~8,6.txt
+ ,8datetime:~8,6.txt
+Testing requests (HTTP library): ,8datetime:~8,6.txt
+ ,8datetime:~8,6.txt
+MAIN APPLICATION ANALYSIS: ,8datetime:~8,6.txt
