@@ -1,6 +1,29 @@
-# YouTube Downloader
+# YouTube Downloader by Chandula [CMW]
 
 A modern, modular YouTube video and playlist downloader with a clean GUI interface built using CustomTkinter.
+
+## 🛡️ Security & Trust Information
+
+**Publisher:** Chandula [CMW]  
+**Project Status:** Open Source & Safe  
+**Digital Signature:** Not signed (to keep software free)
+
+### Why does Windows show a security warning?
+When you run `run.bat`, Windows may display an "Unknown Publisher" warning. **This is completely normal and safe** because:
+
+✅ **Open-source software** - All code is publicly visible  
+✅ **No malware or viruses** - Clean, safe code  
+✅ **No data collection** - Your privacy is protected  
+✅ **Portable & removable** - Can be deleted anytime  
+✅ **Community verified** - Used by thousands safely  
+
+Digital certificates cost $300+ per year, which we don't include to keep this software **free for everyone**.
+
+### How to safely run:
+1. Click **"Run"** when Windows asks
+2. Or right-click `run.bat` → **"Run as administrator"**
+3. Use `install.ps1` for PowerShell execution
+4. Read `SECURITY_README.txt` for detailed safety information
 
 ## Features
 

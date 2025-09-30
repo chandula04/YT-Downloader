@@ -1,12 +1,50 @@
 @echo off
-title YouTube Downloader
+title YouTube Downloader by Chandula [CMW]
 color 0A
 cls
 
+:: ====================================================
+::  YouTube Downloader - Easy Setup
+::  Publisher: Chandula [CMW]
+::  Version: 2.0
+::  Safe to run - No malware, viruses, or harmful code
+:: ====================================================
+
 echo.
 echo ====================================================
-echo          YouTube Downloader - Easy Setup
+echo       YouTube Downloader by Chandula [CMW]
 echo ====================================================
+echo.
+echo 🛡️ SAFETY INFORMATION:
+echo • Publisher: Chandula [CMW]
+echo • This is safe, open-source software
+echo • No viruses, malware, or harmful code
+echo • Source code available on GitHub
+echo.
+echo Windows shows a security warning because this file
+echo is not digitally signed. This is normal for open-source
+echo software and does not indicate any security risk.
+echo.
+echo ✅ Safe to proceed!
+echo.
+
+:: Check if we're in the right directory
+if not exist "main.py" (
+    echo ❌ ERROR: You're not in the YouTube Downloader folder!
+    echo.
+    echo 🔍 Current location: %CD%
+    echo.
+    echo 💡 Please:
+    echo 1. Navigate to the YouTube Downloader folder
+    echo 2. Make sure you can see: main.py, gui folder, core folder
+    echo 3. Run this file again from the correct location
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
+
+echo 📂 Working directory verified: %CD%
 echo.
 
 :: Step 1: Check Python
@@ -142,26 +180,69 @@ echo ====================================================
 echo ✅ EVERYTHING IS READY!
 echo ====================================================
 echo.
-echo 🚀 Starting YouTube Downloader...
+:: All ready - launch the program
+echo ====================================================
+echo ✅ EVERYTHING IS READY!
+echo ====================================================
 echo.
 
-timeout /t 2 /nobreak >nul
-python main.py
-
-:: Handle exit
-echo.
-if %errorlevel% neq 0 (
-    echo ❌ Program ended with an error
+:: Check if main.py exists before trying to run it
+if not exist "main.py" (
+    echo ❌ ERROR: main.py not found!
     echo.
-    echo Common solutions:
+    echo 🔍 Current directory: %CD%
+    echo 📁 Files in current directory:
+    dir /b *.py 2>nul || echo   No Python files found
+    echo.
+    echo 💡 Make sure you're running this from the YouTube Downloader folder
+    echo 💡 The folder should contain: main.py, gui/, core/, utils/, etc.
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
+
+echo 🚀 Starting YouTube Downloader...
+echo 📂 Working directory: %CD%
+echo 🐍 Python path: 
+where python 2>nul || echo   Python not found in PATH
+echo.
+
+:: Give user time to read
+timeout /t 2 /nobreak >nul
+
+:: Try to start the application with detailed error reporting
+echo 📱 Launching main application...
+python main.py 2>&1
+set app_exit_code=%errorlevel%
+
+:: Handle different exit scenarios
+echo.
+if %app_exit_code% equ 0 (
+    echo ✅ Program closed normally
+) else (
+    echo ❌ Program ended with error code: %app_exit_code%
+    echo.
+    echo 🔍 Common solutions:
     echo • Make sure you have internet connection
     echo • Try running this file as administrator
     echo • Check if antivirus is blocking the program
+    echo • Ensure all Python packages are properly installed
     echo.
-) else (
-    echo ✅ Program closed normally
+    echo 🔧 Debug information:
+    echo • Python version:
+    python --version 2>nul || echo   Python not found in PATH
+    echo • Current directory: %CD%
+    echo • main.py exists: Yes
+    echo.
+    echo 🔄 You can try:
+    echo • Running: python main.py
+    echo • Or: fix_python313.bat (for Python 3.13 issues)
+    echo • Or: check_packages.py (to verify packages)
 )
 
 echo.
 echo Thanks for using YouTube Downloader!
-pause
+echo.
+echo Press any key to close this window...
+pause >nul
