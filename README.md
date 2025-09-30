@@ -82,27 +82,80 @@ YT Download[python]/
 
 ## Installation & Setup
 
-### 🚀 **Easy Setup (Recommended)**
-1. **Download or clone the project**
-2. **Double-click `run.bat`** - This will automatically:
-   - Install Python dependencies
-   - Download and setup FFmpeg locally
-   - Launch the application
+### 🚀 **Easy Setup (Recommended) - All-in-One**
+1. **Download the complete project**
+2. **Double-click `run.bat`** - This comprehensive script will automatically:
+   - ✅ Validate your system environment and directory structure
+   - ✅ Check Python installation and PATH configuration  
+   - ✅ Download and install all required Python packages with progress tracking
+   - ✅ Set up FFmpeg for video processing with architecture detection
+   - ✅ Perform network connectivity and security validation
+   - ✅ Test application integrity and dependencies
+   - ✅ Launch YouTube Downloader with comprehensive error handling
+   
+   **Features:**
+   - 📊 **Real-time progress indicators** with percentage completion
+   - 🔍 **Detailed diagnostics** for every step of the setup process
+   - �️ **Automatic error detection and fixing**
+   - 🎯 **Smart package management** - only installs what's missing
+   - 🔧 **FFmpeg auto-setup** with Windows compatibility detection
+   - 🌐 **Network and security validation**
+   - ⏱️ **Estimated time: 2-5 minutes** (depending on internet speed)
 
-### 📋 **Manual Setup**
-1. **Clone or download the project**
-2. **Install Python dependencies:**
+### 📋 **Manual Setup** (If needed)
+1. **Install Python dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-3. **Setup local FFmpeg (automatic):**
+2. **Setup FFmpeg:**
    ```bash
    python setup_ffmpeg.py
    ```
-4. **Run the application:**
+3. **Run the application:**
    ```bash
    python main.py
    ```
+
+### 🎯 **What the Comprehensive Setup Does:**
+
+**Step 1: Environment Validation**
+- System information detection
+- Directory structure verification
+- File integrity checks
+
+**Step 2: Python Installation Check**
+- Python PATH validation
+- Version compatibility testing
+- Pip package manager verification
+
+**Step 3: Package Installation**
+- Smart package detection (only installs missing packages)
+- Progress tracking with visual indicators
+- Automatic retry on failures
+- Integration testing
+
+**Step 4: FFmpeg Setup**
+- System architecture detection
+- Compatible FFmpeg download and installation
+- Local installation testing
+- High-quality video processing preparation
+
+**Step 5: Network & Security Validation**
+- Internet connectivity testing
+- YouTube accessibility verification
+- HTTPS communication testing
+- Security software compatibility check
+
+**Step 6: Application Validation**
+- Syntax verification of all Python files
+- Module import testing
+- GUI framework testing
+- Pre-launch system validation
+
+**Step 7: Application Launch**
+- Comprehensive error capture
+- User guidance for troubleshooting
+- Success confirmation
 
 ## Self-Contained Features
 
