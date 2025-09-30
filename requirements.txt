@@ -1,7 +1,10 @@
 # YouTube Downloader - Dependencies
 
+# Python 3.13 compatibility
+setuptools>=68.0.0
+
 # GUI Framework
-customtkinter==5.2.0
+customtkinter>=5.2.2
 
 # YouTube downloading (updated for better anti-bot handling)
 pytubefix>=6.0.0

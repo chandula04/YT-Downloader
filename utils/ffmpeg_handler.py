@@ -160,32 +160,52 @@ class FFmpegHandler:
         Returns:
             bool: True if FFmpeg is available, False otherwise
         """
-        ffmpeg_path = FFmpegHandler.get_ffmpeg_path()
+        # First, try the local FFmpeg installation
+        project_root = Path(__file__).parent.parent
+        local_ffmpeg = project_root / "ffmpeg" / "ffmpeg.exe"
+        
+        if local_ffmpeg.exists():
+            try:
+                result = subprocess.run([str(local_ffmpeg), '-version'], 
+                             capture_output=True, check=True, timeout=5)
+                print("✅ Local FFmpeg is working!")
+                return True
+            except Exception as e:
+                print(f"⚠️ Local FFmpeg test failed: {e}")
+                # Only remove if it's actually broken
+                if "WinError 216" in str(e) or "not compatible" in str(e):
+                    print("🗑️ Removing incompatible FFmpeg...")
+                    try:
+                        local_ffmpeg.unlink()
+                    except:
+                        pass
+                else:
+                    # Don't remove if it's just a timeout or other temporary issue
+                    print("� Temporary FFmpeg issue, keeping file")
+                    return False
+        
+        # Try system FFmpeg
         try:
-            result = subprocess.run([ffmpeg_path, '-version'], 
+            result = subprocess.run(['ffmpeg', '-version'], 
                          capture_output=True, check=True, timeout=5)
-            print("✅ FFmpeg is ready!")
+            print("✅ System FFmpeg is working!")
             return True
-        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
-            print(f"❌ FFmpeg test failed: {e}")
-            
-            # If system FFmpeg failed, try downloading
-            if ffmpeg_path == "ffmpeg":  # System FFmpeg failed
-                print("🔄 System FFmpeg failed, trying to download...")
-                if FFmpegHandler.download_compatible_ffmpeg():
-                    # Test the downloaded version
-                    project_root = Path(__file__).parent.parent
-                    local_ffmpeg = project_root / "ffmpeg" / "ffmpeg.exe"
-                    if local_ffmpeg.exists():
-                        try:
-                            subprocess.run([str(local_ffmpeg), '-version'], 
-                                         capture_output=True, check=True, timeout=5)
-                            print("✅ Downloaded FFmpeg is working!")
-                            return True
-                        except:
-                            print("❌ Downloaded FFmpeg also failed")
-            
-            return False
+        except:
+            print("❌ No system FFmpeg found")
+        
+        # Only download if no working FFmpeg found
+        print("📥 No working FFmpeg found, downloading...")
+        if FFmpegHandler.download_compatible_ffmpeg():
+            if local_ffmpeg.exists():
+                try:
+                    subprocess.run([str(local_ffmpeg), '-version'], 
+                                 capture_output=True, check=True, timeout=5)
+                    print("✅ Downloaded FFmpeg is working!")
+                    return True
+                except:
+                    print("❌ Downloaded FFmpeg also failed")
+        
+        return False
     
     @staticmethod
     def merge_video_audio(video_path, audio_path, output_path):

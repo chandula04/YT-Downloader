@@ -38,8 +38,15 @@ echo [Step 2/4] Installing required packages...
 echo This may take a few minutes on first run...
 echo.
 
+echo • Installing setuptools (Python 3.13 compatibility)...
+python -m pip install setuptools --quiet >nul 2>&1
+
 echo • Installing CustomTkinter (GUI library)...
-python -m pip install customtkinter==5.2.0 --quiet >nul 2>&1
+python -m pip install --upgrade customtkinter --quiet >nul 2>&1
+if %errorlevel% neq 0 (
+    echo ⚠️ Standard install failed, trying alternative...
+    python -m pip install customtkinter==5.2.2 --force-reinstall --quiet >nul 2>&1
+)
 
 echo • Installing PyTubeFix (YouTube downloader)...
 python -m pip install --upgrade pytubefix --quiet >nul 2>&1
@@ -75,7 +82,23 @@ echo.
 
 :: Step 4: Setup FFmpeg with enhanced compatibility
 echo [Step 4/4] Setting up video processing...
-echo 🎬 Checking FFmpeg compatibility...
+echo 🎬 Checking FFmpeg status...
+
+:: Check if FFmpeg already exists and works
+if exist "ffmpeg\ffmpeg.exe" (
+    echo 🔍 Testing existing FFmpeg...
+    ffmpeg\ffmpeg.exe -version >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo ✅ FFmpeg is ready and working!
+        goto ffmpeg_done
+    ) else (
+        echo ⚠️ Existing FFmpeg has issues, will fix...
+    )
+) else (
+    echo 📁 No local FFmpeg found
+)
+
+echo 🔧 Setting up FFmpeg...
 python setup_ffmpeg.py
 if %errorlevel% neq 0 (
     echo ⚠️ FFmpeg setup had issues - some features may not work
@@ -83,6 +106,8 @@ if %errorlevel% neq 0 (
 ) else (
     echo ✅ FFmpeg ready for high-quality video processing!
 )
+
+:ffmpeg_done
 echo.
 
 :: All ready - launch the program

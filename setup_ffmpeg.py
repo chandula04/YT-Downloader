@@ -116,12 +116,13 @@ def test_ffmpeg():
 
 def setup_ffmpeg():
     """Main FFmpeg setup function"""
-    print("🎬 FFmpeg Setup - Enhanced Compatibility")
+    print("🎬 FFmpeg Setup - Smart Compatibility Check")
     print("=" * 50)
     
     # Check if FFmpeg already works
     if test_ffmpeg():
-        print("✅ FFmpeg is already working!")
+        print("✅ FFmpeg is already working perfectly!")
+        print("💡 No download needed - using existing FFmpeg")
         return True
     
     # Detect system
@@ -132,16 +133,29 @@ def setup_ffmpeg():
         print("💡 Please install FFmpeg manually for your system")
         return False
     
-    # Remove incompatible existing version
+    # Check if we have an incompatible version
     old_ffmpeg = Path("ffmpeg") / "ffmpeg.exe"
     if old_ffmpeg.exists():
-        print("🗑️ Removing incompatible FFmpeg version...")
+        print("🔍 Found existing FFmpeg, testing compatibility...")
         try:
-            old_ffmpeg.unlink()
-        except:
-            pass
+            result = subprocess.run([str(old_ffmpeg), '-version'], 
+                                  capture_output=True, timeout=5)
+            if result.returncode == 0:
+                print("✅ Existing FFmpeg works! No download needed.")
+                return True
+        except Exception as e:
+            if "WinError 216" in str(e) or "not compatible" in str(e):
+                print("🗑️ Removing incompatible FFmpeg version...")
+                try:
+                    old_ffmpeg.unlink()
+                except:
+                    pass
+            else:
+                print(f"⚠️ FFmpeg test issue: {e}")
+                print("🔄 Will try to download fresh version...")
     
-    # Download compatible version
+    # Download compatible version only if needed
+    print(f"📥 Downloading FFmpeg for {arch} architecture...")
     if download_ffmpeg(arch):
         if test_ffmpeg():
             print("🎉 FFmpeg setup completed successfully!")
