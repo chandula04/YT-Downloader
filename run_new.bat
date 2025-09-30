@@ -153,7 +153,7 @@ echo [OK] Package installation completed!
 echo.
 
 :: ============================================================
-:: STEP 3: SETUP FFMPEG WITH COMPATIBILITY CHECK
+:: STEP 3: SETUP FFMPEG WITH ENHANCED COMPATIBILITY CHECK
 :: ============================================================
 echo ================================================================
 echo === STEP 3/4: Setting up Video Processing (FFmpeg)
@@ -162,83 +162,197 @@ echo.
 
 echo Setting up FFmpeg for high-quality video downloads...
 
-:: Check for and fix 16-bit compatibility issues
-echo Checking FFmpeg compatibility with your system...
+:: Enhanced FFmpeg compatibility testing
+echo Performing comprehensive FFmpeg compatibility check...
 
-:: Test if existing FFmpeg has compatibility issues
+set "ffmpeg_compatible=false"
+set "ffmpeg_exists=false"
+
+:: Check if FFmpeg exists
 if exist "ffmpeg\ffmpeg.exe" (
-    echo Testing existing FFmpeg for 16-bit compatibility issues...
-    ffmpeg\ffmpeg.exe -version >nul 2>&1
-    set ffmpeg_test_result=%errorlevel%
+    set "ffmpeg_exists=true"
+    echo Found existing FFmpeg installation, testing compatibility...
     
-    if !ffmpeg_test_result! equ 0 (
-        echo [OK] FFmpeg already installed and working!
-        goto ffmpeg_done
-    ) else (
-        echo Warning: Existing FFmpeg may have compatibility issues
-        echo This often happens with wrong architecture (32-bit vs 64-bit)
-        echo Removing incompatible version and installing correct one...
+    :: Test FFmpeg with comprehensive error detection
+    echo Testing FFmpeg execution...
+    
+    :: Create a temporary test file to capture all errors
+    set "temp_test=temp_ffmpeg_test.txt"
+    
+    :: Try to run FFmpeg and capture any errors
+    ffmpeg\ffmpeg.exe -version >"%temp_test%" 2>&1
+    set ffmpeg_exit_code=%errorlevel%
+    
+    :: Check if the test file contains output
+    if exist "%temp_test%" (
+        :: Check for 16-bit application error or other compatibility issues
+        findstr /i "16-bit application" "%temp_test%" >nul
+        if %errorlevel% equ 0 (
+            echo [ERROR] 16-bit application compatibility issue detected!
+            echo This FFmpeg version is incompatible with your 64-bit Windows system.
+            set "ffmpeg_compatible=false"
+            goto ffmpeg_cleanup
+        )
         
-        :: Remove problematic FFmpeg
+        :: Check for other compatibility errors
+        findstr /i "not compatible\|invalid win32\|cannot execute" "%temp_test%" >nul
+        if %errorlevel% equ 0 (
+            echo [ERROR] FFmpeg compatibility issue detected!
+            echo This FFmpeg version is not compatible with your system.
+            set "ffmpeg_compatible=false"
+            goto ffmpeg_cleanup
+        )
+        
+        :: Check for successful version output
+        findstr /i "ffmpeg version" "%temp_test%" >nul
+        if %errorlevel% equ 0 (
+            if !ffmpeg_exit_code! equ 0 (
+                echo [OK] FFmpeg is compatible and working!
+                set "ffmpeg_compatible=true"
+                del "%temp_test%" 2>nul
+                goto ffmpeg_done
+            )
+        )
+        
+        :: Clean up test file
+        del "%temp_test%" 2>nul
+    )
+    
+    :: If we reach here, FFmpeg exists but has issues
+    echo [WARNING] FFmpeg exists but compatibility test failed
+    echo Exit code: !ffmpeg_exit_code!
+    set "ffmpeg_compatible=false"
+    
+    :ffmpeg_cleanup
+    echo.
+    echo COMPATIBILITY ISSUE DETECTED - FIXING AUTOMATICALLY
+    echo ====================================================
+    echo.
+    echo The current FFmpeg installation has compatibility issues.
+    echo Common causes:
+    echo - Wrong architecture (32-bit FFmpeg on 64-bit Windows)
+    echo - Corrupted installation
+    echo - Missing Visual C++ Redistributables
+    echo.
+    echo Removing incompatible FFmpeg and installing correct version...
+    
+    :: Force removal of incompatible FFmpeg
+    if exist "ffmpeg" (
+        echo Removing incompatible FFmpeg installation...
+        rmdir /s /q "ffmpeg" 2>nul
         if exist "ffmpeg" (
-            rmdir /s /q "ffmpeg" 2>nul
-            echo Cleaned up incompatible FFmpeg installation
+            echo Trying alternative removal method...
+            del /f /q "ffmpeg\*.*" 2>nul
+            rmdir "ffmpeg" 2>nul
+        )
+        
+        if exist "ffmpeg" (
+            echo [WARNING] Could not fully remove FFmpeg folder
+            echo You may need to manually delete the ffmpeg folder
+            echo Press any key to continue with installation attempt...
+            pause >nul
+        ) else (
+            echo [OK] Incompatible FFmpeg removed successfully
         )
     )
+    
 ) else (
-    echo No existing FFmpeg found, will install compatible version...
+    echo No existing FFmpeg found, will install fresh version...
 )
 
+:: Install or reinstall FFmpeg with architecture detection
 echo.
 echo Installing architecture-compatible FFmpeg...
+echo =============================================
 
 :: Use enhanced automatic installer
 if exist "setup_ffmpeg.py" (
     echo Running enhanced FFmpeg installer with compatibility detection...
+    echo This will:
+    echo - Detect your system architecture (32-bit vs 64-bit)
+    echo - Download the correct FFmpeg version
+    echo - Test compatibility before confirming installation
+    echo.
+    
     python setup_ffmpeg.py
     set ffmpeg_install_result=%errorlevel%
     
     if !ffmpeg_install_result! equ 0 (
-        echo [OK] FFmpeg installed successfully!
+        echo [OK] FFmpeg installation completed!
         
-        :: Double-check the installation works
-        echo Verifying FFmpeg installation...
-        ffmpeg\ffmpeg.exe -version >nul 2>&1
-        if %errorlevel% equ 0 (
-            echo [OK] FFmpeg verified and ready!
+        :: Perform final verification test
+        echo.
+        echo Performing final compatibility verification...
+        
+        if exist "ffmpeg\ffmpeg.exe" (
+            :: Test the new installation
+            ffmpeg\ffmpeg.exe -version >nul 2>&1
+            if %errorlevel% equ 0 (
+                echo [OK] FFmpeg verified and ready for use!
+                set "ffmpeg_compatible=true"
+            ) else (
+                echo [WARNING] FFmpeg installed but verification failed
+                echo This may indicate a deeper system compatibility issue
+                set "ffmpeg_compatible=false"
+            )
         ) else (
-            echo Warning: FFmpeg installed but verification failed
-            echo This may indicate a system compatibility issue
-            echo Basic downloads will still work without FFmpeg
+            echo [ERROR] FFmpeg installation completed but executable not found
+            set "ffmpeg_compatible=false"
         )
     ) else (
-        echo Warning: FFmpeg installation encountered issues
+        echo [ERROR] FFmpeg installation failed (exit code: !ffmpeg_install_result!)
+        set "ffmpeg_compatible=false"
+        
         echo.
-        echo POSSIBLE CAUSES:
-        echo - Your system may need the correct Visual C++ Redistributable
-        echo - Antivirus software may be blocking the download
-        echo - Network connectivity issues
+        echo INSTALLATION TROUBLESHOOTING
+        echo =============================
         echo.
-        echo SOLUTIONS:
-        echo 1. Download Visual C++ Redistributable from Microsoft
-        echo 2. Temporarily disable antivirus during setup
-        echo 3. Check your internet connection
-        echo 4. Try running as administrator
+        echo Possible causes and solutions:
         echo.
-        echo Note: Basic video downloads will still work without FFmpeg
-        echo FFmpeg is only needed for high-quality adaptive streams
+        echo 1. NETWORK ISSUES:
+        echo    - Check your internet connection
+        echo    - Try running as administrator
+        echo    - Temporarily disable antivirus/firewall
+        echo.
+        echo 2. SYSTEM REQUIREMENTS:
+        echo    - Install Visual C++ Redistributable from Microsoft
+        echo    - Update Windows to latest version
+        echo    - Ensure sufficient disk space
+        echo.
+        echo 3. MANUAL INSTALLATION:
+        echo    - Go to: https://ffmpeg.org/download.html
+        echo    - Download correct version for your Windows (32-bit or 64-bit)
+        echo    - Extract ffmpeg.exe to the 'ffmpeg' folder
+        echo.
     )
 ) else (
-    echo Warning: FFmpeg installer not found
-    echo You can manually add FFmpeg later for enhanced features
+    echo [ERROR] FFmpeg installer (setup_ffmpeg.py) not found!
     echo.
-    echo MANUAL INSTALLATION:
-    echo 1. Go to https://ffmpeg.org/download.html
-    echo 2. Download the correct version for your Windows (32-bit or 64-bit)
-    echo 3. Extract ffmpeg.exe to the 'ffmpeg' folder
+    echo MANUAL INSTALLATION REQUIRED:
+    echo ==============================
+    echo 1. Create a 'ffmpeg' folder in this directory
+    echo 2. Go to: https://ffmpeg.org/download.html
+    echo 3. Download FFmpeg for Windows (choose correct architecture)
+    echo 4. Extract ffmpeg.exe to the 'ffmpeg' folder
+    echo 5. Run this setup again
+    echo.
+    set "ffmpeg_compatible=false"
 )
 
 :ffmpeg_done
+echo.
+echo FFmpeg Setup Summary:
+echo =====================
+if "!ffmpeg_compatible!"=="true" (
+    echo [OK] FFmpeg is ready for high-quality video processing
+    echo [OK] Adaptive stream downloads will work perfectly
+    echo [OK] Video/audio merging is available
+) else (
+    echo [WARNING] FFmpeg setup encountered issues
+    echo [INFO] Basic video downloads will still work
+    echo [INFO] Only adaptive streams and merging will be unavailable
+    echo [TIP] You can run 'python setup_ffmpeg.py' later to retry
+)
 echo.
 echo [OK] Video processing setup completed!
 echo.
