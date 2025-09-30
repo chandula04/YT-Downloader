@@ -59,17 +59,29 @@ def resolution_key(quality_string):
     Extract numeric resolution for sorting quality options
     
     Args:
-        quality_string (str): Quality string like "1080p - Progressive"
+        quality_string (str): Quality string like "1080p - Adaptive (1.5 GB)" or "2160p - Adaptive (4K)"
         
     Returns:
         int: Numeric resolution for sorting
     """
     try:
+        # Get the first part (resolution)
         res = quality_string.split(' ')[0]
+        
         if 'p' in res:
+            # Handle standard resolutions like 1080p, 720p, 2160p, 1440p, 4320p
             return int(res.replace('p', ''))
-        elif 'k' in res:
-            return int(res.replace('k', '')) * 1000
+        elif 'k' in res.lower():
+            # Handle 4K, 2K, 8K format
+            num = res.lower().replace('k', '')
+            if num == '8':
+                return 4320  # 8K = 4320p
+            elif num == '4':
+                return 2160  # 4K = 2160p
+            elif num == '2':
+                return 1440  # 2K = 1440p
+            else:
+                return int(num) * 1000 if num.isdigit() else 0
         return 0
     except:
         return 0
