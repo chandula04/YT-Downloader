@@ -133,13 +133,14 @@ class PlaylistPanel(ctk.CTkFrame):
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=(0, 15))  # Increased padding
     
-    def show_playlist(self, playlist, youtube_handler):
+    def show_playlist(self, playlist, youtube_handler, progress_callback=None):
         """
         Show playlist with all its videos and quality options
         
         Args:
             playlist: YouTube Playlist object
             youtube_handler: YouTubeHandler instance for getting quality options
+            progress_callback: Function to call with progress updates (current, total, status, title)
         """
         # Note: Grid positioning is now handled by the main window layout methods
         
@@ -166,10 +167,30 @@ class PlaylistPanel(ctk.CTkFrame):
             video_urls = []
         
         print(f"📋 Processing {total_videos} videos in playlist...")
+        
+        # Report total to progress callback
+        if progress_callback:
+            progress_callback(0, total_videos, "Initializing playlist...", "")
+        
         successful_items = 0
         
         for i, video_url in enumerate(video_urls):
             try:
+                # Check for cancellation via progress callback
+                if progress_callback:
+                    # Get video title first for progress display
+                    try:
+                        temp_video = youtube_handler.safe_load_video_from_url(video_url)
+                        if temp_video:
+                            video_title = temp_video.title
+                        else:
+                            video_title = f"Video {i+1}"
+                    except:
+                        video_title = f"Video {i+1}"
+                    
+                    # Update progress
+                    progress_callback(i, total_videos, "Loading video info...", video_title)
+                
                 print(f"📝 Loading video {i+1}/{total_videos}...")
                 
                 # Safely load video using the new method
@@ -181,6 +202,10 @@ class PlaylistPanel(ctk.CTkFrame):
                 # Get video info safely
                 video_info = youtube_handler.get_video_info(video)
                 print(f"📝 Processing: {video_info['title'][:50]}...")
+                
+                # Update progress with current video
+                if progress_callback:
+                    progress_callback(i+1, total_videos, "Processing video...", video_info['title'])
                 
                 # Get detailed quality options for individual video (with sizes and types)
                 quality_options = youtube_handler.get_quality_options(video)
@@ -196,6 +221,10 @@ class PlaylistPanel(ctk.CTkFrame):
                 continue
         
         print(f"🎯 Successfully processed {successful_items}/{total_videos} videos")
+        
+        # Final progress update
+        if progress_callback:
+            progress_callback(total_videos, total_videos, "Completed!", f"Loaded {successful_items}/{total_videos} videos")
         
         self._update_selection_count()
     

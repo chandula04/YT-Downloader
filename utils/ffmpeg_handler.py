@@ -129,7 +129,8 @@ class FFmpegHandler:
             # Test if the local FFmpeg is compatible
             try:
                 result = subprocess.run([str(local_ffmpeg), '-version'], 
-                             capture_output=True, check=True, timeout=5)
+                             capture_output=True, check=True, timeout=5,
+                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
                 print("✅ Local FFmpeg compatibility test passed")
                 return str(local_ffmpeg)
             except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
@@ -175,7 +176,8 @@ class FFmpegHandler:
         if local_ffmpeg.exists():
             try:
                 result = subprocess.run([str(local_ffmpeg), '-version'], 
-                             capture_output=True, check=True, timeout=5)
+                             capture_output=True, check=True, timeout=5,
+                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
                 print("✅ Local FFmpeg is working!")
                 return True
             except Exception as e:
@@ -195,7 +197,8 @@ class FFmpegHandler:
         # Try system FFmpeg
         try:
             result = subprocess.run(['ffmpeg', '-version'], 
-                         capture_output=True, check=True, timeout=5)
+                         capture_output=True, check=True, timeout=5,
+                         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             print("✅ System FFmpeg is working!")
             return True
         except:
@@ -207,7 +210,8 @@ class FFmpegHandler:
             if local_ffmpeg.exists():
                 try:
                     subprocess.run([str(local_ffmpeg), '-version'], 
-                                 capture_output=True, check=True, timeout=5)
+                                 capture_output=True, check=True, timeout=5,
+                                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
                     print("✅ Downloaded FFmpeg is working!")
                     return True
                 except:
@@ -252,7 +256,8 @@ class FFmpegHandler:
                     '-y',  # Overwrite output file if it exists
                     output_path
                 ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
-                text=True, encoding='utf-8', errors='ignore')
+                text=True, encoding='utf-8', errors='ignore',
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
                 
                 if progress_callback:
                     progress_callback(25, "Processing video streams...")
@@ -288,7 +293,8 @@ class FFmpegHandler:
                     output_path
                 ], check=True, capture_output=True, timeout=MERGE_TIMEOUT, 
                 # Set encoding to ignore errors to prevent UnicodeDecodeError
-                text=True, encoding='utf-8', errors='ignore')
+                text=True, encoding='utf-8', errors='ignore',
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             
         except FileNotFoundError:
             raise FileNotFoundError("FFmpeg is not installed or not in PATH")

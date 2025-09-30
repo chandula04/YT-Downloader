@@ -8,7 +8,7 @@ from tkinter import messagebox
 from config.settings import APP_TITLE, WINDOW_GEOMETRY, COLORS
 from config.user_settings import user_settings
 from core import file_manager, YouTubeHandler, DownloadManager
-from gui.components import VideoPreview, PlaylistPanel, ProgressTracker, QualitySelector, SettingsDialog
+from gui.components import VideoPreview, PlaylistPanel, ProgressTracker, QualitySelector, SettingsDialog, LoadingPopup
 
 
 class MainWindow(ctk.CTk):
@@ -510,7 +510,13 @@ class MainWindow(ctk.CTk):
     
     def _handle_load_error(self, error_message):
         """Handle loading errors on main thread"""
-        messagebox.showerror("Error", f"Failed to load video: {error_message}")
+        # Close loading popup if it exists
+        if hasattr(self, 'loading_popup'):
+            self.loading_popup.show_error(f"Failed to load: {error_message}")
+            self.after(3000, self._close_loading_popup)
+        else:
+            messagebox.showerror("Error", f"Failed to load video: {error_message}")
+        
         # On error, return to single video layout
         self._show_single_video_layout()
         self.is_playlist_loaded = False
@@ -662,7 +668,10 @@ class MainWindow(ctk.CTk):
         self.url_entry.configure(state="normal")
     
     def _load_playlist_threaded(self, url):
-        """Load a playlist in background thread"""
+        """Load a playlist in background thread with progress popup"""
+        # Create and show loading popup on main thread
+        self.after(0, lambda: self._show_playlist_loading_popup())
+        
         try:
             # Load playlist (this runs in background thread)
             playlist = self.youtube_handler.load_playlist(url)
@@ -675,73 +684,183 @@ class MainWindow(ctk.CTk):
                 self.after(0, lambda: self._show_playlist_warning())
                 return
             
-            # Load first video for preview
-            first_video_info = None
-            thumbnail_image = None
-            quality_options = []
-            
-            if playlist.videos:
-                try:
-                    first_video = list(playlist.videos)[0]
-                    first_video_info = self.youtube_handler.get_video_info(first_video)
-                    thumbnail_image = self.youtube_handler.get_thumbnail_image(
-                        first_video_info['thumbnail_url']
-                    )
-                    quality_options = self.youtube_handler.get_quality_options(first_video)
-                except Exception as e:
-                    print(f"Error loading first video preview: {e}")
-                    # Don't fail the entire playlist load for this
-            
-            # Schedule UI updates on main thread
-            self.after(0, lambda: self._update_playlist_ui(playlist, video_count, first_video_info, thumbnail_image, quality_options))
+            # Schedule playlist processing on main thread with progress updates
+            self.after(0, lambda: self._process_playlist_with_progress(playlist))
             
         except Exception as e:
             # Schedule error handling on main thread
             self.after(0, lambda: self._handle_load_error(str(e)))
     
-    def _show_playlist_warning(self):
-        """Show playlist warning (called on main thread)"""
-        messagebox.showwarning(
-            "No Accessible Videos", 
-            "This playlist contains no accessible videos. This might happen if:\n"
-            "• Videos are private or restricted\n"
-            "• Videos are age-restricted\n"
-            "• Videos are not available in your region\n"
-            "• The playlist is empty or deleted"
+    def _show_playlist_loading_popup(self):
+        """Show the playlist loading popup"""
+        self.loading_popup = LoadingPopup(
+            self, 
+            title="Loading Playlist", 
+            message="Loading playlist videos..."
         )
+        # Disable main window controls
+        self.load_button.configure(state="disabled")
+        self.url_entry.configure(state="disabled")
+    
+    def _process_playlist_with_progress(self, playlist):
+        """Process playlist with progress updates in the popup"""
+        try:
+            # Set up progress tracking
+            video_urls = list(playlist.video_urls)
+            total_videos = len(video_urls)
+            self.loading_popup.set_total_videos(total_videos)
+            
+            # Process playlist in background with progress updates
+            threading.Thread(
+                target=self._process_playlist_items, 
+                args=(playlist, total_videos),
+                daemon=True
+            ).start()
+            
+        except Exception as e:
+            self._handle_playlist_processing_error(str(e))
+    
+    def _process_playlist_items(self, playlist, total_videos):
+        """Process playlist items in background thread"""
+        try:
+            successful_items = 0
+            first_video_info = None
+            thumbnail_image = None
+            quality_options = []
+            
+            # Process each video with progress updates
+            for i, video_url in enumerate(list(playlist.video_urls)):
+                # Check for cancellation
+                if hasattr(self, 'loading_popup') and self.loading_popup.is_cancelled():
+                    self.after(0, lambda: self._handle_playlist_cancellation())
+                    return
+                
+                try:
+                    # Update progress
+                    self.after(0, lambda idx=i: self.loading_popup.update_progress(
+                        idx, f"Loading video {idx+1}/{total_videos}...", f"Video {idx+1}"
+                    ))
+                    
+                    # Load video
+                    video = self.youtube_handler.safe_load_video_from_url(video_url)
+                    
+                    if video is None:
+                        continue
+                    
+                    # Get video info
+                    video_info = self.youtube_handler.get_video_info(video)
+                    
+                    # Update progress with video title
+                    self.after(0, lambda idx=i+1, title=video_info['title']: 
+                              self.loading_popup.update_progress(
+                                  idx, f"Processing video {idx}/{total_videos}...", title
+                              ))
+                    
+                    # Store first video for preview
+                    if successful_items == 0:
+                        first_video_info = video_info
+                        thumbnail_image = self.youtube_handler.get_thumbnail_image(
+                            video_info['thumbnail_url']
+                        )
+                        quality_options = self.youtube_handler.get_quality_options(video)
+                    
+                    successful_items += 1
+                    
+                except Exception as e:
+                    print(f"Error processing video {i+1}: {e}")
+                    continue
+            
+            # Complete processing on main thread
+            self.after(0, lambda: self._complete_playlist_processing(
+                playlist, successful_items, total_videos, first_video_info, thumbnail_image, quality_options
+            ))
+            
+        except Exception as e:
+            self.after(0, lambda: self._handle_playlist_processing_error(str(e)))
+    
+    def _complete_playlist_processing(self, playlist, successful_items, total_videos, 
+                                    first_video_info, thumbnail_image, quality_options):
+        """Complete playlist processing on main thread"""
+        try:
+            # Update loading popup to show completion
+            self.loading_popup.show_success(f"Successfully loaded {successful_items}/{total_videos} videos")
+            
+            # Switch to playlist layout
+            self._show_playlist_layout()
+            
+            # Create progress callback for playlist panel
+            def progress_callback(current, total, status, title):
+                if hasattr(self, 'loading_popup') and not self.loading_popup.is_cancelled():
+                    self.loading_popup.update_progress(current, status, title)
+            
+            # Show playlist panel - this will process and display videos
+            self.playlist_panel.show_playlist(playlist, self.youtube_handler, progress_callback)
+            self.is_playlist_loaded = True
+            
+            # Update download buttons
+            self._update_download_buttons()
+            
+            # Update first video preview if available
+            if first_video_info and thumbnail_image:
+                self.video_preview.update_video_info(first_video_info, thumbnail_image)
+                
+            if quality_options:
+                self.quality_selector.set_quality_options(quality_options)
+            
+            # Auto-close popup after 2 seconds
+            self.after(2000, self._close_loading_popup)
+            
+            # Re-enable controls
+            self.load_button.configure(text="Load Video", state="normal")
+            self.url_entry.configure(state="normal")
+            
+        except Exception as e:
+            self._handle_playlist_processing_error(str(e))
+    
+    def _handle_playlist_processing_error(self, error_message):
+        """Handle playlist processing errors"""
+        if hasattr(self, 'loading_popup'):
+            self.loading_popup.show_error(f"Error: {error_message}")
+            self.after(3000, self._close_loading_popup)
+        
         # Re-enable controls
         self.load_button.configure(text="Load Video", state="normal")
         self.url_entry.configure(state="normal")
     
-    def _update_playlist_ui(self, playlist, video_count, first_video_info, thumbnail_image, quality_options):
-        """Update UI for playlist (called on main thread)"""
-        # Switch to playlist layout (split panel view)
-        self._show_playlist_layout()
-        
-        # Show playlist panel with quality options
-        self.playlist_panel.show_playlist(playlist, self.youtube_handler)
-        self.is_playlist_loaded = True
-        
-        # Show the "Download Selected" button
-        self._update_download_buttons()
-        
-        # Update first video preview if available
-        if first_video_info and thumbnail_image:
-            self.video_preview.update_video_info(first_video_info, thumbnail_image)
-            
-        if quality_options:
-            self.quality_selector.set_quality_options(quality_options)
+    def _handle_playlist_cancellation(self):
+        """Handle playlist loading cancellation"""
+        if hasattr(self, 'loading_popup'):
+            self.loading_popup.close_popup()
+            delattr(self, 'loading_popup')
         
         # Re-enable controls
         self.load_button.configure(text="Load Video", state="normal")
         self.url_entry.configure(state="normal")
+    
+    def _close_loading_popup(self):
+        """Close the loading popup"""
+        if hasattr(self, 'loading_popup'):
+            self.loading_popup.close_popup()
+            delattr(self, 'loading_popup')
+    
+    def _show_playlist_warning(self):
+        """Show playlist warning (called on main thread)"""
+        if hasattr(self, 'loading_popup'):
+            self.loading_popup.show_error("This playlist contains no accessible videos")
+            self.after(3000, self._close_loading_popup)
+        else:
+            messagebox.showwarning(
+                "No Accessible Videos", 
+                "This playlist contains no accessible videos. This might happen if:\n"
+                "• Videos are private or restricted\n"
+                "• Videos are age-restricted\n"
+                "• Videos are not available in your region\n"
+                "• The playlist is empty or deleted"
+            )
         
-        # Show success message
-        messagebox.showinfo(
-            "Playlist Loaded", 
-            f"Successfully loaded playlist with {video_count} accessible video(s).\n\n"
-            "Note: Some videos may have been skipped due to access restrictions."
-        )
+        # Re-enable controls
+        self.load_button.configure(text="Load Video", state="normal")
+        self.url_entry.configure(state="normal")
     
     def _download(self):
         """Handle download button click"""
