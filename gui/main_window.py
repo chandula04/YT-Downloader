@@ -3,6 +3,7 @@ Main application window for YouTube Downloader
 """
 
 import customtkinter as ctk
+import threading
 from tkinter import messagebox
 from config.settings import APP_TITLE, WINDOW_GEOMETRY, COLORS
 from config.user_settings import user_settings
@@ -479,7 +480,7 @@ class MainWindow(ctk.CTk):
             self.path_label.configure(text=f"Download Path: {path}")
     
     def _load_video(self):
-        """Handle loading video or playlist"""
+        """Handle loading video or playlist with threading to prevent UI freeze"""
         url = self.url_entry.get().strip()
         if not url:
             messagebox.showerror("Error", "Please enter a YouTube URL")
@@ -487,17 +488,35 @@ class MainWindow(ctk.CTk):
         
         self.current_url = url
         
+        # Disable load button and show loading state
+        self.load_button.configure(text="Loading...", state="disabled")
+        self.url_entry.configure(state="disabled")
+        self.update_idletasks()
+        
+        # Start loading in background thread to prevent UI freeze
+        threading.Thread(target=self._load_video_thread, args=(url,), daemon=True).start()
+    
+    def _load_video_thread(self, url):
+        """Background thread for video loading to prevent UI freezing"""
         try:
             if self.youtube_handler.is_playlist(url):
-                self._load_playlist(url)
+                self._load_playlist_threaded(url)
             else:
-                self._load_single_video(url)
+                self._load_single_video_threaded(url)
                 
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load video: {str(e)}")
-            # On error, return to single video layout
-            self._show_single_video_layout()
-            self.is_playlist_loaded = False
+            # Schedule UI update on main thread
+            self.after(0, lambda: self._handle_load_error(str(e)))
+    
+    def _handle_load_error(self, error_message):
+        """Handle loading errors on main thread"""
+        messagebox.showerror("Error", f"Failed to load video: {error_message}")
+        # On error, return to single video layout
+        self._show_single_video_layout()
+        self.is_playlist_loaded = False
+        # Re-enable controls
+        self.load_button.configure(text="Load Video", state="normal")
+        self.url_entry.configure(state="normal")
     
     def _load_single_video(self, url):
         """Load a single video"""
@@ -599,6 +618,130 @@ class MainWindow(ctk.CTk):
         finally:
             # Re-enable the load button
             self.load_button.configure(text="Load Video", state="normal")
+    
+    def _load_single_video_threaded(self, url):
+        """Load a single video in background thread"""
+        try:
+            # Load video (this runs in background thread)
+            video = self.youtube_handler.load_video(url)
+            
+            # Get video info and thumbnail
+            video_info = self.youtube_handler.get_video_info(video)
+            thumbnail_image = self.youtube_handler.get_thumbnail_image(
+                video_info['thumbnail_url']
+            )
+            
+            # Get quality options
+            quality_options = self.youtube_handler.get_quality_options(video)
+            
+            # Schedule UI updates on main thread
+            self.after(0, lambda: self._update_single_video_ui(video_info, thumbnail_image, quality_options))
+            
+        except Exception as e:
+            # Schedule error handling on main thread
+            self.after(0, lambda: self._handle_load_error(str(e)))
+    
+    def _update_single_video_ui(self, video_info, thumbnail_image, quality_options):
+        """Update UI for single video (called on main thread)"""
+        # Switch to single video layout (full width main panel)
+        self._show_single_video_layout()
+        
+        # Hide playlist panel and update state
+        self.playlist_panel.hide_playlist()
+        self.is_playlist_loaded = False
+        
+        # Update download buttons
+        self._update_download_buttons()
+        
+        # Update UI
+        self.video_preview.update_video_info(video_info, thumbnail_image)
+        self.quality_selector.set_quality_options(quality_options)
+        
+        # Re-enable controls
+        self.load_button.configure(text="Load Video", state="normal")
+        self.url_entry.configure(state="normal")
+    
+    def _load_playlist_threaded(self, url):
+        """Load a playlist in background thread"""
+        try:
+            # Load playlist (this runs in background thread)
+            playlist = self.youtube_handler.load_playlist(url)
+            
+            # Check if any videos were found
+            video_count = len(list(playlist.videos)) if playlist.videos else 0
+            
+            if video_count == 0:
+                # Schedule warning on main thread
+                self.after(0, lambda: self._show_playlist_warning())
+                return
+            
+            # Load first video for preview
+            first_video_info = None
+            thumbnail_image = None
+            quality_options = []
+            
+            if playlist.videos:
+                try:
+                    first_video = list(playlist.videos)[0]
+                    first_video_info = self.youtube_handler.get_video_info(first_video)
+                    thumbnail_image = self.youtube_handler.get_thumbnail_image(
+                        first_video_info['thumbnail_url']
+                    )
+                    quality_options = self.youtube_handler.get_quality_options(first_video)
+                except Exception as e:
+                    print(f"Error loading first video preview: {e}")
+                    # Don't fail the entire playlist load for this
+            
+            # Schedule UI updates on main thread
+            self.after(0, lambda: self._update_playlist_ui(playlist, video_count, first_video_info, thumbnail_image, quality_options))
+            
+        except Exception as e:
+            # Schedule error handling on main thread
+            self.after(0, lambda: self._handle_load_error(str(e)))
+    
+    def _show_playlist_warning(self):
+        """Show playlist warning (called on main thread)"""
+        messagebox.showwarning(
+            "No Accessible Videos", 
+            "This playlist contains no accessible videos. This might happen if:\n"
+            "• Videos are private or restricted\n"
+            "• Videos are age-restricted\n"
+            "• Videos are not available in your region\n"
+            "• The playlist is empty or deleted"
+        )
+        # Re-enable controls
+        self.load_button.configure(text="Load Video", state="normal")
+        self.url_entry.configure(state="normal")
+    
+    def _update_playlist_ui(self, playlist, video_count, first_video_info, thumbnail_image, quality_options):
+        """Update UI for playlist (called on main thread)"""
+        # Switch to playlist layout (split panel view)
+        self._show_playlist_layout()
+        
+        # Show playlist panel with quality options
+        self.playlist_panel.show_playlist(playlist, self.youtube_handler)
+        self.is_playlist_loaded = True
+        
+        # Show the "Download Selected" button
+        self._update_download_buttons()
+        
+        # Update first video preview if available
+        if first_video_info and thumbnail_image:
+            self.video_preview.update_video_info(first_video_info, thumbnail_image)
+            
+        if quality_options:
+            self.quality_selector.set_quality_options(quality_options)
+        
+        # Re-enable controls
+        self.load_button.configure(text="Load Video", state="normal")
+        self.url_entry.configure(state="normal")
+        
+        # Show success message
+        messagebox.showinfo(
+            "Playlist Loaded", 
+            f"Successfully loaded playlist with {video_count} accessible video(s).\n\n"
+            "Note: Some videos may have been skipped due to access restrictions."
+        )
     
     def _download(self):
         """Handle download button click"""

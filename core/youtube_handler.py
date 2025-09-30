@@ -408,25 +408,21 @@ class YouTubeHandler:
                 except Exception as e:
                     print(f"❌ Error processing adaptive streams: {e}")
             
-            # If no streams or adaptive streams found, provide comprehensive defaults with sizes
+            # If no streams found, provide basic common quality fallbacks (not comprehensive)
             if not quality_options:
-                print("📋 No streams found, using comprehensive defaults with estimated sizes...")
+                print("📋 No streams found, using basic common quality fallbacks...")
                 try:
                     # Try to get video duration for size estimates
                     duration = getattr(video, 'length', 180)  # Default to 3 minutes if unknown
                     print(f"⏱️ Using duration: {duration}s for size estimates")
                     
-                    # Comprehensive resolution list with 2K, 4K, 8K
+                    # Basic common resolution list (most videos support these)
                     fallback_options = [
-                        ("4320p", "8K", 50000000),   # 8K Ultra HD
-                        ("2160p", "4K", 25000000),   # 4K Ultra HD
-                        ("1440p", "2K", 10000000),   # 2K Quad HD
-                        ("1080p", "Full HD", 5000000), # Full HD
-                        ("720p", "HD", 2500000),     # HD Ready
-                        ("480p", "SD", 800000),      # Standard Definition
-                        ("360p", "", 300000),        # Low Quality
-                        ("240p", "", 150000),        # Very Low Quality
-                        ("144p", "", 80000)          # Minimum Quality
+                        ("1080p", "Full HD", 5000000), # Full HD - most common
+                        ("720p", "HD", 2500000),       # HD Ready - very common
+                        ("480p", "SD", 800000),        # Standard Definition - common
+                        ("360p", "", 300000),          # Low Quality - universal
+                        ("240p", "", 150000),          # Very Low Quality - universal
                     ]
                     
                     for resolution, label, bitrate in fallback_options:
@@ -436,7 +432,7 @@ class YouTubeHandler:
                             label_info = f" ({label})" if label else ""
                             quality_str = f"{resolution} - Adaptive{size_info}{label_info}"
                             quality_options.append(quality_str)
-                            print(f"📋 Added fallback: {quality_str}")
+                            print(f"📋 Added basic fallback: {quality_str}")
                         except:
                             label_info = f" ({label})" if label else ""
                             quality_str = f"{resolution} - Adaptive{label_info}"
@@ -444,61 +440,19 @@ class YouTubeHandler:
                             print(f"📋 Added basic fallback: {quality_str}")
                             
                 except Exception:
-                    # Ultimate comprehensive fallback
+                    # Ultimate basic fallback - only common qualities
                     quality_options = [
-                        "4320p - Adaptive (8K)",
-                        "2160p - Adaptive (4K)",
-                        "1440p - Adaptive (2K)", 
                         "1080p - Adaptive (Full HD)",
                         "720p - Adaptive (HD)",
                         "480p - Adaptive (SD)",
                         "360p - Adaptive",
-                        "240p - Adaptive",
-                        "144p - Adaptive"
+                        "240p - Adaptive"
                     ]
-                    print("📋 Using ultimate comprehensive fallback")
+                    print("📋 Using basic fallback options")
             
-            # ALWAYS ensure 8K option is present (even if not actually available)
-            has_8k = any("4320p" in option for option in quality_options)
-            if not has_8k:
-                print("🎯 Adding 8K option (may not be available for this video)")
-                try:
-                    duration = getattr(video, 'length', 180)
-                    estimated_bytes = (50000000 * duration) // 8  # 50 Mbps for 8K
-                    size_info = f" (~{format_size(estimated_bytes)})"
-                    quality_options.insert(0, f"4320p - Adaptive{size_info} (8K)")
-                except:
-                    quality_options.insert(0, "4320p - Adaptive (8K)")
-                    
-            # ALWAYS ensure 4K option is present
-            has_4k = any("2160p" in option for option in quality_options)
-            if not has_4k:
-                print("🎯 Adding 4K option (may not be available for this video)")
-                try:
-                    duration = getattr(video, 'length', 180)
-                    estimated_bytes = (25000000 * duration) // 8  # 25 Mbps for 4K
-                    size_info = f" (~{format_size(estimated_bytes)})"
-                    # Insert after 8K if present, otherwise at the beginning
-                    insert_pos = 1 if has_8k else 0
-                    quality_options.insert(insert_pos, f"2160p - Adaptive{size_info} (4K)")
-                except:
-                    insert_pos = 1 if has_8k else 0
-                    quality_options.insert(insert_pos, "2160p - Adaptive (4K)")
-                    
-            # ALWAYS ensure 2K option is present
-            has_2k = any("1440p" in option for option in quality_options)
-            if not has_2k:
-                print("🎯 Adding 2K option (may not be available for this video)")
-                try:
-                    duration = getattr(video, 'length', 180)
-                    estimated_bytes = (10000000 * duration) // 8  # 10 Mbps for 2K
-                    size_info = f" (~{format_size(estimated_bytes)})"
-                    # Insert after 4K
-                    insert_pos = 2 if has_8k and has_4k else (1 if has_4k or has_8k else 0)
-                    quality_options.insert(insert_pos, f"1440p - Adaptive{size_info} (2K)")
-                except:
-                    insert_pos = 2 if has_8k and has_4k else (1 if has_4k or has_8k else 0)
-                    quality_options.insert(insert_pos, "1440p - Adaptive (2K)")
+            # Only show qualities that are actually available in the video streams
+            # (Remove the forced addition of 8K, 4K, 2K options that may not exist)
+            print(f"📋 Using only available video stream qualities: {len(quality_options)} options found")
             
             # Sort by resolution (highest first) - updated to handle 4K/2K/8K properly
             try:
@@ -535,18 +489,14 @@ class YouTubeHandler:
                 print("   3. Check if pytubefix needs updating")
                 print("   4. Use a VPN if available")
                 
-                # Return comprehensive fallback options for throttling with all resolutions
-                print("🔄 Using comprehensive throttling fallback...")
+                # Return basic common options for throttling (don't assume 8K/4K availability)
+                print("🔄 Using basic throttling fallback...")
                 return [
-                    "4320p - Adaptive (~15 GB) (8K)",
-                    "2160p - Adaptive (~7.5 GB) (4K)",
-                    "1440p - Adaptive (~3 GB) (2K)",
                     "1080p - Adaptive (~1.5 GB) (Full HD)",
                     "720p - Adaptive (~700 MB) (HD)",
                     "480p - Adaptive (~300 MB) (SD)",
                     "360p - Adaptive (~150 MB)",
-                    "240p - Adaptive (~75 MB)",
-                    "144p - Adaptive (~35 MB)"
+                    "240p - Adaptive (~75 MB)"
                 ]
             
             # Return comprehensive adaptive defaults with estimated sizes if all else fails

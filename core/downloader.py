@@ -183,12 +183,18 @@ class DownloadManager:
             self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
             raise Exception("Download cancelled")
         
-        # Merge with FFmpeg
+        # Merge with FFmpeg with progress tracking
         output_filename = f"{safe_filename(video.title)}.mp4"
         final_output_path = os.path.join(output_path, output_filename)
         
         try:
-            self.ffmpeg_handler.merge_video_audio(video_path, audio_path, final_output_path)
+            # Create FFmpeg progress callback
+            def ffmpeg_progress(percentage, stage):
+                if self.progress_callback:
+                    # Call with proper signature: downloaded, total, percentage, speed, elapsed, custom_text
+                    self.progress_callback(0, 0, percentage, 0, 0, f"🎬 {stage}")
+            
+            self.ffmpeg_handler.merge_video_audio(video_path, audio_path, final_output_path, ffmpeg_progress)
         except OSError as e:
             # Handle Windows compatibility errors specifically
             if "WinError 216" in str(e) or "not compatible with the version of Windows" in str(e):
