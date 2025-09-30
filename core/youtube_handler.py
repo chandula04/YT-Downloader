@@ -16,6 +16,61 @@ class YouTubeHandler:
         self.current_video = None
         self.current_playlist = None
     
+    def load_video_with_download_retry(self, url):
+        """
+        Load video with special client strategies for download issues (403 errors)
+        
+        Args:
+            url (str): YouTube video URL
+            
+        Returns:
+            YouTube: YouTube object optimized for download
+            
+        Raises:
+            Exception: If all download-optimized strategies fail
+        """
+        print("🔄 Loading video with download-optimized strategies...")
+        
+        # Download-optimized client strategies for 403 errors
+        download_clients = [
+            # iOS client - often bypasses 403 restrictions
+            {"use_oauth": False, "allow_oauth_cache": False, "client": "IOS"},
+            # Android with specific user agent
+            {"use_oauth": False, "allow_oauth_cache": False, "client": "ANDROID"},
+            # Web client with fresh session
+            {"use_oauth": False, "allow_oauth_cache": False, "client": "WEB"},
+            # Android Music - sometimes works when others fail
+            {"use_oauth": False, "allow_oauth_cache": False, "client": "ANDROID_MUSIC"},
+            # TV_EMBED - last resort for 403 issues
+            {"use_oauth": False, "allow_oauth_cache": False, "client": "TV_EMBED"},
+        ]
+        
+        last_error = None
+        for i, client_config in enumerate(download_clients):
+            try:
+                client_name = client_config.get("client", "DEFAULT")
+                print(f"🔄 Download retry {i+1}/{len(download_clients)}: {client_name}")
+                
+                video = YouTube(url, **client_config)
+                
+                # Test download capability by accessing streams
+                streams = video.streams.filter(file_extension='mp4')
+                if streams and len(streams) > 0:
+                    print(f"✅ Download-optimized {client_name} successful with {len(streams)} streams")
+                    return video
+                else:
+                    print(f"⚠️ {client_name} no streams available")
+                    continue
+                    
+            except Exception as e:
+                last_error = e
+                error_str = str(e)[:100]
+                print(f"❌ Download client {client_name} failed: {error_str}...")
+                continue
+        
+        # If all download-optimized clients fail
+        raise Exception(f"All download-optimized strategies failed. Last error: {last_error}")
+    
     def load_video(self, url):
         """
         Load a single YouTube video with multiple client fallbacks

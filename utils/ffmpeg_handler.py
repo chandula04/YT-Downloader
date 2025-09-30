@@ -122,11 +122,15 @@ class FFmpegHandler:
         project_root = Path(__file__).parent.parent
         local_ffmpeg = project_root / "ffmpeg" / "ffmpeg.exe"
         
+        print(f"🔍 Checking local FFmpeg: {local_ffmpeg}")
+        
         if local_ffmpeg.exists():
+            print("✅ Local FFmpeg file exists")
             # Test if the local FFmpeg is compatible
             try:
-                subprocess.run([str(local_ffmpeg), '-version'], 
+                result = subprocess.run([str(local_ffmpeg), '-version'], 
                              capture_output=True, check=True, timeout=5)
+                print("✅ Local FFmpeg compatibility test passed")
                 return str(local_ffmpeg)
             except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
                 print(f"⚠️ Local FFmpeg incompatible: {e}")
@@ -141,14 +145,18 @@ class FFmpegHandler:
                 # Download compatible version
                 if FFmpegHandler.download_compatible_ffmpeg():
                     if local_ffmpeg.exists():
+                        print("✅ Downloaded compatible FFmpeg")
                         return str(local_ffmpeg)
         else:
+            print("❌ Local FFmpeg not found")
             # No local FFmpeg, try to download it
             print("📥 FFmpeg not found, downloading compatible version...")
             if FFmpegHandler.download_compatible_ffmpeg():
                 if local_ffmpeg.exists():
+                    print("✅ Successfully downloaded FFmpeg")
                     return str(local_ffmpeg)
         
+        print("⚠️ Falling back to system PATH")
         # Fallback to system PATH
         return "ffmpeg"
     
@@ -231,20 +239,43 @@ class FFmpegHandler:
         
         try:
             if progress_callback:
-                # Use Popen for real-time progress tracking
+                # Use simpler progress tracking to avoid compatibility issues
+                if progress_callback:
+                    progress_callback(0, "Starting FFmpeg merge...")
+                
+                # Use the original simple method but with intermediate progress updates
                 process = subprocess.Popen([
                     ffmpeg_path, '-i', video_path, '-i', audio_path, 
                     '-c:v', FFMPEG_VIDEO_CODEC, 
                     '-c:a', FFMPEG_AUDIO_CODEC, 
                     '-strict', FFMPEG_STRICT_EXPERIMENTAL, 
-                    '-progress', 'pipe:1',  # Output progress to stdout
                     '-y',  # Overwrite output file if it exists
                     output_path
                 ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
                 text=True, encoding='utf-8', errors='ignore')
                 
-                # Track progress from FFmpeg output
-                FFmpegHandler._track_merge_progress(process, progress_callback)
+                if progress_callback:
+                    progress_callback(25, "Processing video streams...")
+                    
+                # Wait for process to complete with timeout
+                try:
+                    stdout, stderr = process.communicate(timeout=MERGE_TIMEOUT)
+                    
+                    if progress_callback:
+                        progress_callback(75, "Finalizing merge...")
+                        
+                    if process.returncode != 0:
+                        raise subprocess.CalledProcessError(
+                            process.returncode, process.args, 
+                            f"FFmpeg failed: {stderr}"
+                        )
+                        
+                except subprocess.TimeoutExpired:
+                    process.terminate()
+                    raise subprocess.TimeoutExpired(
+                        ffmpeg_path, MERGE_TIMEOUT, 
+                        "FFmpeg took too long to process the video"
+                    )
                 
             else:
                 # Use the original simple method without progress tracking
@@ -276,64 +307,6 @@ class FFmpegHandler:
             
         if progress_callback:
             progress_callback(100, "FFmpeg merge completed!")
-    
-    @staticmethod
-    def _track_merge_progress(process, progress_callback):
-        """Track FFmpeg merge progress from stdout"""
-        duration = None
-        current_time = 0
-        
-        try:
-            progress_callback(10, "Analyzing video...")
-            
-            while True:
-                line = process.stdout.readline()
-                if not line:
-                    break
-                    
-                line = line.strip()
-                
-                # Parse duration from FFmpeg output
-                if 'Duration:' in line and duration is None:
-                    try:
-                        # Extract duration in format "Duration: 00:03:45.67"
-                        import re
-                        duration_match = re.search(r'Duration: (\d+):(\d+):(\d+)', line)
-                        if duration_match:
-                            hours, minutes, seconds = map(int, duration_match.groups())
-                            duration = hours * 3600 + minutes * 60 + seconds
-                            progress_callback(20, f"Video duration: {duration}s")
-                    except:
-                        pass
-                
-                # Parse current time from progress output
-                if line.startswith('out_time_us='):
-                    try:
-                        microseconds = int(line.split('=')[1])
-                        current_time = microseconds / 1000000  # Convert to seconds
-                        
-                        if duration and duration > 0:
-                            percentage = min(90, 20 + (current_time / duration) * 70)  # 20-90% range
-                            progress_callback(int(percentage), f"Merging... {int(current_time)}s/{duration}s")
-                        else:
-                            # Fallback progress without duration
-                            progress_callback(50, f"Merging... {int(current_time)}s")
-                    except:
-                        pass
-            
-            # Wait for process to complete
-            process.wait()
-            
-            if process.returncode != 0:
-                stderr_output = process.stderr.read()
-                raise subprocess.CalledProcessError(
-                    process.returncode, process.args, 
-                    f"FFmpeg failed: {stderr_output}"
-                )
-                
-        except Exception as e:
-            process.terminate()
-            raise e
     
     @staticmethod
     def cleanup_temp_files(*file_paths):

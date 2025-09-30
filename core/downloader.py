@@ -502,7 +502,7 @@ class DownloadManager:
                 error_callback(str(e))
     
     def _download_video_thread(self, video_url, quality_str, is_audio, success_callback, error_callback):
-        """Thread function for single video download"""
+        """Thread function for single video download with enhanced error handling"""
         try:
             video = self.youtube_handler.load_video(video_url)
             self.download_single_video(video, quality_str, is_audio, file_manager.get_download_path())
@@ -511,5 +511,71 @@ class DownloadManager:
                 success_callback("Download completed!")
                 
         except Exception as e:
+            error_message = str(e)
+            
+            # Handle specific HTTP 403 Forbidden error with retry
+            if "403" in error_message or "Forbidden" in error_message:
+                print("🔄 Detected 403 error, attempting download-optimized retry...")
+                try:
+                    # Try with download-optimized client strategies
+                    video = self.youtube_handler.load_video_with_download_retry(video_url)
+                    self.download_single_video(video, quality_str, is_audio, file_manager.get_download_path())
+                    
+                    if success_callback:
+                        success_callback("Download completed after retry!")
+                    return
+                    
+                except Exception as retry_error:
+                    print(f"❌ Download retry also failed: {retry_error}")
+                    enhanced_error = (
+                        "🚫 YouTube Access Blocked (HTTP 403: Forbidden)\n\n"
+                        "This happens when YouTube restricts downloads for this video.\n"
+                        "We tried multiple download strategies but all were blocked.\n\n"
+                        "💡 Solutions to try:\n"
+                        "1. Wait 5-10 minutes and try again\n"
+                        "2. Try a different video first\n"
+                        "3. Use a VPN to change your location\n"
+                        "4. Check if the video is region-restricted\n"
+                        "5. Try again later - YouTube limits may reset\n\n"
+                        "🔄 The app automatically tried multiple download methods,\n"
+                        "but YouTube is currently blocking access to this video."
+                    )
+                    if error_callback:
+                        error_callback(enhanced_error)
+                    return
+            
+            # Handle other common YouTube errors
+            elif "throttling" in error_message.lower():
+                enhanced_error = (
+                    "🐌 YouTube Throttling Detected\n\n"
+                    "YouTube is slowing down download requests.\n\n"
+                    "💡 Solutions:\n"
+                    "1. Wait 15-30 minutes before trying again\n"
+                    "2. Try a different video\n"
+                    "3. Use a VPN if available\n"
+                    "4. Check for pytubefix updates\n\n"
+                    "This is temporary - try again later."
+                )
+                if error_callback:
+                    error_callback(enhanced_error)
+            elif "private" in error_message.lower() or "unavailable" in error_message.lower():
+                enhanced_error = (
+                    "🔒 Video Access Restricted\n\n"
+                    "This video is private, deleted, or not available.\n\n"
+                    "Possible reasons:\n"
+                    "• Video is set to private\n"
+                    "• Video has been deleted\n"
+                    "• Video is region-restricted\n"
+                    "• Video requires sign-in to view\n\n"
+                    "Try a different video that is publicly accessible."
+                )
+                if error_callback:
+                    error_callback(enhanced_error)
+            else:
+                # Generic error with original message
+                if error_callback:
+                    error_callback(f"Download failed: {error_message}")
+                    
+        except KeyboardInterrupt:
             if error_callback:
-                error_callback(str(e))
+                error_callback("Download cancelled by user")
