@@ -73,18 +73,15 @@ if %errorlevel% neq 0 (
 echo ✅ All libraries verified!
 echo.
 
-:: Step 4: Setup FFmpeg
+:: Step 4: Setup FFmpeg with enhanced compatibility
 echo [Step 4/4] Setting up video processing...
-if exist "ffmpeg\ffmpeg.exe" (
-    echo ✅ FFmpeg already ready
+echo 🎬 Checking FFmpeg compatibility...
+python setup_ffmpeg.py
+if %errorlevel% neq 0 (
+    echo ⚠️ FFmpeg setup had issues - some features may not work
+    echo 💡 This won't prevent basic downloads
 ) else (
-    echo Setting up FFmpeg for video processing...
-    python setup_ffmpeg.py >nul 2>&1
-    if exist "ffmpeg\ffmpeg.exe" (
-        echo ✅ FFmpeg ready!
-    ) else (
-        echo ⚠️ FFmpeg setup failed - some features may not work
-    )
+    echo ✅ FFmpeg ready for high-quality video processing!
 )
 echo.
 

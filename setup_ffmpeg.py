@@ -1,88 +1,164 @@
 """
-FFmpeg setup utility - Downloads and extracts FFmpeg for Windows
+Enhanced FFmpeg setup with automatic compatibility detection and download
 """
 
 import os
 import sys
+import platform
 import zipfile
 import requests
+import subprocess
 from pathlib import Path
 
 
-def download_ffmpeg():
-    """Download FFmpeg for Windows"""
-    print("Setting up FFmpeg locally...")
+def detect_system_info():
+    """Detect system architecture and compatibility"""
+    system = platform.system()
+    machine = platform.machine().lower()
+    version = platform.version()
     
-    # FFmpeg download URL for Windows (static build)
-    ffmpeg_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+    print(f"🔍 System: {system} {version}")
+    print(f"🔍 Architecture: {machine}")
     
-    project_root = Path(__file__).parent
-    ffmpeg_dir = project_root / "ffmpeg"
-    ffmpeg_zip = ffmpeg_dir / "ffmpeg.zip"
+    # Determine architecture
+    is_64bit = machine in ['amd64', 'x86_64', 'arm64']
+    arch = 'x64' if is_64bit else 'x86'
     
-    # Create ffmpeg directory if it doesn't exist
-    ffmpeg_dir.mkdir(exist_ok=True)
-    
-    print(f"Downloading FFmpeg to {ffmpeg_zip}...")
-    
+    print(f"🔍 Detected: Windows {arch}")
+    return arch, system
+
+
+def download_ffmpeg(arch):
+    """Download compatible FFmpeg for the detected architecture"""
     try:
-        # Download FFmpeg
-        response = requests.get(ffmpeg_url, stream=True)
-        response.raise_for_status()
+        print(f"📥 Downloading FFmpeg for Windows {arch}...")
         
-        with open(ffmpeg_zip, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+        # FFmpeg download URLs
+        urls = {
+            'x64': 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip',
+            'x86': 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win32-gpl.zip'
+        }
         
-        print("Download completed. Extracting...")
-        
-        # Extract FFmpeg
-        with zipfile.ZipFile(ffmpeg_zip, 'r') as zip_ref:
-            zip_ref.extractall(ffmpeg_dir)
-        
-        # Find the extracted folder
-        extracted_folders = [d for d in ffmpeg_dir.iterdir() if d.is_dir() and d.name.startswith('ffmpeg-')]
-        
-        if extracted_folders:
-            extracted_folder = extracted_folders[0]
-            bin_folder = extracted_folder / "bin"
-            
-            if bin_folder.exists():
-                # Move ffmpeg.exe to the main ffmpeg directory
-                ffmpeg_exe = bin_folder / "ffmpeg.exe"
-                if ffmpeg_exe.exists():
-                    target_path = ffmpeg_dir / "ffmpeg.exe"
-                    if target_path.exists():
-                        target_path.unlink()
-                    ffmpeg_exe.rename(target_path)
-                    print(f"FFmpeg installed successfully at: {target_path}")
-                else:
-                    print("Error: ffmpeg.exe not found in the extracted files")
-                    return False
-            else:
-                print("Error: bin folder not found in extracted files")
-                return False
-        else:
-            print("Error: Could not find extracted FFmpeg folder")
+        if arch not in urls:
+            print(f"❌ No FFmpeg available for {arch}")
             return False
         
+        url = urls[arch]
+        
+        # Create ffmpeg directory
+        ffmpeg_dir = Path("ffmpeg")
+        ffmpeg_dir.mkdir(exist_ok=True)
+        
+        print("📥 Downloading...")
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        
+        zip_path = ffmpeg_dir / "ffmpeg.zip"
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded = 0
+        
+        with open(zip_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        percent = (downloaded / total_size) * 100
+                        print(f"\r📥 Progress: {percent:.1f}%", end='', flush=True)
+        
+        print("\n📦 Extracting FFmpeg...")
+        
+        # Extract only ffmpeg.exe
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            for file_info in zip_ref.filelist:
+                if file_info.filename.endswith('ffmpeg.exe'):
+                    file_info.filename = 'ffmpeg.exe'
+                    zip_ref.extract(file_info, ffmpeg_dir)
+                    break
+        
         # Clean up
-        ffmpeg_zip.unlink()
+        zip_path.unlink(missing_ok=True)
         
-        # Remove extracted folder after moving ffmpeg.exe
-        import shutil
-        for folder in extracted_folders:
-            shutil.rmtree(folder)
-        
-        print("✅ FFmpeg setup completed successfully!")
-        return True
-        
+        # Verify
+        ffmpeg_exe = ffmpeg_dir / "ffmpeg.exe"
+        if ffmpeg_exe.exists():
+            print("✅ FFmpeg installed successfully!")
+            return True
+        else:
+            print("❌ FFmpeg extraction failed")
+            return False
+            
     except Exception as e:
-        print(f"❌ Error setting up FFmpeg: {e}")
+        print(f"❌ Download failed: {e}")
+        return False
+
+
+def test_ffmpeg():
+    """Test if FFmpeg is working"""
+    ffmpeg_paths = [
+        Path("ffmpeg") / "ffmpeg.exe",
+        "ffmpeg"  # System PATH
+    ]
+    
+    for ffmpeg_path in ffmpeg_paths:
+        try:
+            result = subprocess.run([str(ffmpeg_path), '-version'], 
+                                  capture_output=True, timeout=5)
+            if result.returncode == 0:
+                print(f"✅ FFmpeg working: {ffmpeg_path}")
+                return True
+        except Exception as e:
+            print(f"❌ FFmpeg test failed for {ffmpeg_path}: {e}")
+            continue
+    
+    return False
+
+
+def setup_ffmpeg():
+    """Main FFmpeg setup function"""
+    print("🎬 FFmpeg Setup - Enhanced Compatibility")
+    print("=" * 50)
+    
+    # Check if FFmpeg already works
+    if test_ffmpeg():
+        print("✅ FFmpeg is already working!")
+        return True
+    
+    # Detect system
+    arch, system = detect_system_info()
+    
+    if system != "Windows":
+        print("❌ Auto-setup only supports Windows")
+        print("💡 Please install FFmpeg manually for your system")
+        return False
+    
+    # Remove incompatible existing version
+    old_ffmpeg = Path("ffmpeg") / "ffmpeg.exe"
+    if old_ffmpeg.exists():
+        print("🗑️ Removing incompatible FFmpeg version...")
+        try:
+            old_ffmpeg.unlink()
+        except:
+            pass
+    
+    # Download compatible version
+    if download_ffmpeg(arch):
+        if test_ffmpeg():
+            print("🎉 FFmpeg setup completed successfully!")
+            return True
+        else:
+            print("❌ FFmpeg downloaded but not working")
+            return False
+    else:
+        print("❌ FFmpeg setup failed")
         return False
 
 
 if __name__ == "__main__":
-    success = download_ffmpeg()
+    success = setup_ffmpeg()
     if not success:
+        print("\n💡 Manual Installation Instructions:")
+        print("1. Go to https://ffmpeg.org/download.html")
+        print("2. Download FFmpeg for your Windows version")
+        print("3. Extract ffmpeg.exe to the 'ffmpeg' folder")
         sys.exit(1)

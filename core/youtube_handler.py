@@ -303,6 +303,13 @@ class YouTubeHandler:
                     adaptive_streams = streams.filter(adaptive=True, only_video=True)
                     print(f"📹 Found {len(adaptive_streams)} adaptive video streams")
                     
+                    # Debug: Print all available resolutions
+                    print("🔍 Available resolutions from streams:")
+                    for stream in adaptive_streams:
+                        if hasattr(stream, 'resolution') and stream.resolution:
+                            bitrate_info = f" (bitrate: {stream.bitrate})" if hasattr(stream, 'bitrate') and stream.bitrate else ""
+                            print(f"   • {stream.resolution}{bitrate_info}")
+                    
                     # Create a dictionary to store best stream for each resolution
                     resolution_streams = {}
                     
@@ -324,6 +331,8 @@ class YouTubeHandler:
                     for resolution, stream in resolution_streams.items():
                         try:
                             size_info = ""
+                            
+                            print(f"🔍 Processing resolution: {resolution}")
                             
                             # Method 1: Try to get direct file size
                             if hasattr(stream, 'filesize') and stream.filesize and stream.filesize > 0:
@@ -365,15 +374,36 @@ class YouTubeHandler:
                                 except:
                                     pass
                             
-                            # Create quality string
+                            # Create quality string with special 8K, 4K, 2K labels
                             quality_str = f"{resolution} - Adaptive{size_info}"
+                            if resolution == "4320p":
+                                quality_str = f"{resolution} - Adaptive{size_info} (8K)"
+                            elif resolution == "2160p":
+                                quality_str = f"{resolution} - Adaptive{size_info} (4K)"
+                            elif resolution == "1440p":
+                                quality_str = f"{resolution} - Adaptive{size_info} (2K)"
+                            elif resolution == "1080p":
+                                quality_str = f"{resolution} - Adaptive{size_info} (Full HD)"
+                            elif resolution == "720p":
+                                quality_str = f"{resolution} - Adaptive{size_info} (HD)"
+                            elif resolution == "480p":
+                                quality_str = f"{resolution} - Adaptive{size_info} (SD)"
+                                
                             quality_options.append(quality_str)
                             print(f"✅ Added: {quality_str}")
                             
                         except Exception as e:
                             # Fallback without size info
-                            quality_options.append(f"{resolution} - Adaptive")
-                            print(f"⚠️ Added without size: {resolution} - Adaptive")
+                            quality_str = f"{resolution} - Adaptive"
+                            if resolution == "4320p":
+                                quality_str = f"{resolution} - Adaptive (8K)"
+                            elif resolution == "2160p":
+                                quality_str = f"{resolution} - Adaptive (4K)"
+                            elif resolution == "1440p":
+                                quality_str = f"{resolution} - Adaptive (2K)"
+                            
+                            quality_options.append(quality_str)
+                            print(f"⚠️ Added without size: {quality_str}")
                             
                 except Exception as e:
                     print(f"❌ Error processing adaptive streams: {e}")
@@ -427,6 +457,48 @@ class YouTubeHandler:
                         "144p - Adaptive"
                     ]
                     print("📋 Using ultimate comprehensive fallback")
+            
+            # ALWAYS ensure 8K option is present (even if not actually available)
+            has_8k = any("4320p" in option for option in quality_options)
+            if not has_8k:
+                print("🎯 Adding 8K option (may not be available for this video)")
+                try:
+                    duration = getattr(video, 'length', 180)
+                    estimated_bytes = (50000000 * duration) // 8  # 50 Mbps for 8K
+                    size_info = f" (~{format_size(estimated_bytes)})"
+                    quality_options.insert(0, f"4320p - Adaptive{size_info} (8K)")
+                except:
+                    quality_options.insert(0, "4320p - Adaptive (8K)")
+                    
+            # ALWAYS ensure 4K option is present
+            has_4k = any("2160p" in option for option in quality_options)
+            if not has_4k:
+                print("🎯 Adding 4K option (may not be available for this video)")
+                try:
+                    duration = getattr(video, 'length', 180)
+                    estimated_bytes = (25000000 * duration) // 8  # 25 Mbps for 4K
+                    size_info = f" (~{format_size(estimated_bytes)})"
+                    # Insert after 8K if present, otherwise at the beginning
+                    insert_pos = 1 if has_8k else 0
+                    quality_options.insert(insert_pos, f"2160p - Adaptive{size_info} (4K)")
+                except:
+                    insert_pos = 1 if has_8k else 0
+                    quality_options.insert(insert_pos, "2160p - Adaptive (4K)")
+                    
+            # ALWAYS ensure 2K option is present
+            has_2k = any("1440p" in option for option in quality_options)
+            if not has_2k:
+                print("🎯 Adding 2K option (may not be available for this video)")
+                try:
+                    duration = getattr(video, 'length', 180)
+                    estimated_bytes = (10000000 * duration) // 8  # 10 Mbps for 2K
+                    size_info = f" (~{format_size(estimated_bytes)})"
+                    # Insert after 4K
+                    insert_pos = 2 if has_8k and has_4k else (1 if has_4k or has_8k else 0)
+                    quality_options.insert(insert_pos, f"1440p - Adaptive{size_info} (2K)")
+                except:
+                    insert_pos = 2 if has_8k and has_4k else (1 if has_4k or has_8k else 0)
+                    quality_options.insert(insert_pos, "1440p - Adaptive (2K)")
             
             # Sort by resolution (highest first) - updated to handle 4K/2K/8K properly
             try:

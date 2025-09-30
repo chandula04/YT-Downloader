@@ -189,6 +189,37 @@ class DownloadManager:
         
         try:
             self.ffmpeg_handler.merge_video_audio(video_path, audio_path, final_output_path)
+        except OSError as e:
+            # Handle Windows compatibility errors specifically
+            if "WinError 216" in str(e) or "not compatible with the version of Windows" in str(e):
+                self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+                raise Exception(
+                    "FFmpeg compatibility error detected!\n\n"
+                    "This happens when FFmpeg version doesn't match your Windows.\n\n"
+                    "Solutions:\n"
+                    "1. Close the app and run 'setup_ffmpeg.py' manually\n"
+                    "2. Or delete the 'ffmpeg' folder and restart the app\n"
+                    "3. The app will download the correct FFmpeg version\n\n"
+                    "Your Windows system needs a different FFmpeg build."
+                )
+            else:
+                self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+                raise Exception(f"FFmpeg error: {str(e)}")
+        except Exception as e:
+            self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+            # Check if it's a compatibility issue
+            if "WinError 216" in str(e) or "not compatible" in str(e):
+                raise Exception(
+                    "Windows compatibility issue detected!\n\n"
+                    "Your FFmpeg version is not compatible with your Windows.\n\n"
+                    "Quick fix:\n"
+                    "1. Close this app\n"
+                    "2. Delete the 'ffmpeg' folder\n"
+                    "3. Run the app again\n\n"
+                    "The app will automatically download the correct version."
+                )
+            else:
+                raise e
         finally:
             # Clean up temporary files
             self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
@@ -230,9 +261,53 @@ class DownloadManager:
                     pass
                 raise Exception("Download cancelled")
             
-            # Merge using FFmpeg
+            # Merge using FFmpeg with error handling
             output_file = os.path.join(output_path, safe_name + '.mp4')
-            self.ffmpeg_handler.merge_video_audio(video_path, audio_path, output_file)
+            try:
+                self.ffmpeg_handler.merge_video_audio(video_path, audio_path, output_file)
+            except OSError as e:
+                # Handle Windows compatibility errors
+                if "WinError 216" in str(e) or "not compatible with the version of Windows" in str(e):
+                    # Clean up temp files
+                    try:
+                        os.remove(video_path)
+                        os.remove(audio_path)
+                    except:
+                        pass
+                    raise Exception(
+                        "FFmpeg Windows compatibility error!\n\n"
+                        "Your FFmpeg version doesn't match your Windows.\n\n"
+                        "Quick fix:\n"
+                        "1. Close the app\n"
+                        "2. Delete the 'ffmpeg' folder\n"
+                        "3. Restart the app\n\n"
+                        "A compatible FFmpeg will be downloaded automatically."
+                    )
+                else:
+                    # Clean up temp files
+                    try:
+                        os.remove(video_path)
+                        os.remove(audio_path)
+                    except:
+                        pass
+                    raise Exception(f"FFmpeg error: {str(e)}")
+            except Exception as e:
+                # Clean up temp files
+                try:
+                    os.remove(video_path)
+                    os.remove(audio_path)
+                except:
+                    pass
+                    
+                # Check for compatibility issues
+                if "WinError 216" in str(e) or "not compatible" in str(e):
+                    raise Exception(
+                        "Windows compatibility detected!\n\n"
+                        "Solution: Delete 'ffmpeg' folder and restart app.\n"
+                        "The correct FFmpeg version will be downloaded."
+                    )
+                else:
+                    raise e
             
             # Clean up temp files
             try:
