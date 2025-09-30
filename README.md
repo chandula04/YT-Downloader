@@ -70,6 +70,12 @@ python main.py
 - Real-time progress during video/audio merging
 - Clear status messages: "Processing streams...", "Finalizing..."
 
+### ✅ **Fixed FFmpeg Compatibility Issues** 
+- Automatic detection and fix for "16-bit application" errors
+- Smart architecture detection (32-bit vs 64-bit Windows)
+- Automatic download of compatible FFmpeg version
+- Enhanced compatibility testing and error recovery
+
 ## 🛡️ Security Information
 
 **Publisher:** Chandula [CMW] - Open Source & Safe  
@@ -98,12 +104,14 @@ python main.py
 - Use VPN if persistent
 - This affects ~15% of videos, most work fine
 
-#### ⚠️ **"FFmpeg not found"**
-**What it means:** Video processing tool is missing  
+#### ⚠️ **"FFmpeg not found" or "16-bit application" error**
+**What it means:** FFmpeg is missing or incompatible with your system architecture  
 **Solutions:**
-- ✅ App automatically downloads FFmpeg to `ffmpeg/` folder
-- Delete the `ffmpeg` folder and restart app to re-download
-- Ensure antivirus isn't blocking the download
+- ✅ **NEW FIX**: App automatically detects and downloads compatible version
+- Run `python test_ffmpeg_compatibility.py` to diagnose the issue
+- Delete the `ffmpeg` folder and restart app to re-download correct version
+- The app now detects 32-bit vs 64-bit Windows automatically
+- **Most Common Fix**: Run `python setup_ffmpeg.py` for automatic repair
 
 #### 🔄 **UI Becomes Unresponsive**  
 **What it means:** Interface freezing during loading
@@ -150,6 +158,7 @@ python main.py
 | **Age Restricted** | Video requires age verification | Try different video |
 | **Private/Deleted** | Video no longer accessible | Skip this video |
 | **Network Timeout** | Internet connection issue | Check connection |
+| **16-bit Application** | FFmpeg architecture mismatch | Run compatibility fix |
 
 ### Getting Help
 
