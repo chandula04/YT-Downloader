@@ -1,6 +1,33 @@
 @echo off
 title YouTube Downloader by Chandula [CMW]
 color 0A
+
+:: CRITICAL: Prevent window from closing on any error
+setlocal EnableExtensions EnableDelayedExpansion
+
+:: Set error handling - pause on ANY exit
+set "error_pause=1"
+
+:: Trap ALL exit scenarios
+if "%1" neq "no_pause" (
+    :: Create a wrapper that always pauses
+    echo Starting YouTube Downloader with error protection...
+    cmd /c "%~f0" no_pause
+    echo.
+    echo ===========================================
+    echo Window will now pause to show any errors
+    echo ===========================================
+    echo.
+    if exist error_log.txt (
+        echo ❌ ERRORS DETECTED:
+        type error_log.txt
+        echo.
+    )
+    echo Press any key to close this window...
+    pause >nul
+    exit /b
+)
+
 cls
 
 :: ====================================================
@@ -29,46 +56,68 @@ echo ✅ Safe to proceed!
 echo.
 
 :: Check if we're in the right directory
+echo 🔍 INITIAL DIAGNOSTICS:
+echo • Current directory: %CD%
+echo • Python executable: 
+where python 2>nul || echo   ❌ Python not found in PATH!
+echo • Contents of current folder:
+dir /b main.py gui core utils 2>nul || echo   ❌ Project files missing!
+echo.
+
 if not exist "main.py" (
+    echo ❌ CRITICAL ERROR: main.py not found! >>error_log.txt
     echo ❌ ERROR: You're not in the YouTube Downloader folder!
     echo.
     echo 🔍 Current location: %CD%
+    echo 📁 Files in this directory:
+    dir /b *.py 2>nul || echo   No Python files found
     echo.
-    echo 💡 Please:
-    echo 1. Navigate to the YouTube Downloader folder
-    echo 2. Make sure you can see: main.py, gui folder, core folder
-    echo 3. Run this file again from the correct location
+    echo 💡 SOLUTION:
+    echo 1. Navigate to the correct YouTube Downloader folder
+    echo 2. Look for these files: main.py, gui folder, core folder
+    echo 3. Right-click run.bat and choose "Run as administrator"
     echo.
-    echo Press any key to exit...
-    pause >nul
-    exit /b 1
+    echo ERROR: Wrong directory or missing files >>error_log.txt
+    goto force_pause
 )
 
-echo 📂 Working directory verified: %CD%
+echo ✅ Directory check passed - main.py found
+echo 📂 Working from: %CD%
 echo.
 
-:: Step 1: Check Python
-echo [Step 1/4] Checking Python...
-python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ❌ Python not found!
+:: Step 1: Check Python with detailed diagnosis
+echo [Step 1/4] Checking Python installation...
+echo 🔍 Diagnosing Python setup...
+
+:: Check if python command exists
+python --version >temp_output.txt 2>&1
+set python_check=%errorlevel%
+
+if %python_check% neq 0 (
+    echo ❌ PYTHON ERROR DETECTED >>error_log.txt
+    echo ❌ Python not found or not working!
     echo.
-    echo Python is required to run this program.
+    echo 🔍 Python diagnosis:
+    type temp_output.txt 2>nul || echo   No output from python command
+    echo.
+    echo 💡 SOLUTIONS:
+    echo 1. Install Python from: https://www.python.org/downloads/
+    echo 2. During installation, CHECK "Add Python to PATH"
+    echo 3. Restart your computer after installation
+    echo 4. Try running as administrator
+    echo.
     echo Opening Python download page...
+    start https://www.python.org/downloads/ 2>nul
     echo.
-    echo IMPORTANT: When installing Python, make sure to:
-    echo ✓ Check "Add Python to PATH"
-    echo ✓ Install for all users
-    echo.
-    echo After installing Python, run this file again.
-    start https://www.python.org/downloads/
-    echo.
-    pause
-    exit /b 1
+    echo Python not found >>error_log.txt
+    goto force_pause
 )
 
-python --version
-echo ✅ Python is installed!
+:: Show Python version
+echo 🐍 Python version detected:
+type temp_output.txt
+del temp_output.txt >nul 2>&1
+echo ✅ Python is working correctly!
 echo.
 
 ::Step 2: Smart package management
@@ -211,38 +260,92 @@ echo.
 :: Give user time to read
 timeout /t 2 /nobreak >nul
 
-:: Try to start the application with detailed error reporting
-echo 📱 Launching main application...
-python main.py 2>&1
+:: Try to start the application with comprehensive error capture
+echo 📱 Attempting to launch YouTube Downloader...
+echo � Launch diagnostics:
+echo • Python executable: 
+where python
+echo • Working directory: %CD%
+echo • main.py exists: Yes
+echo • File size: 
+for %%I in (main.py) do echo   %%~zI bytes
+echo.
+
+:: Capture ALL output and errors
+echo 🚀 Starting application...
+python main.py >app_output.txt 2>&1
 set app_exit_code=%errorlevel%
 
-:: Handle different exit scenarios
 echo.
-if %app_exit_code% equ 0 (
-    echo ✅ Program closed normally
-) else (
-    echo ❌ Program ended with error code: %app_exit_code%
+echo 📊 APPLICATION FINISHED
+echo • Exit code: %app_exit_code%
+echo • Output captured in app_output.txt
+echo.
+
+:: Show what happened
+if exist app_output.txt (
+    echo 📜 Application output:
+    echo ================================
+    type app_output.txt
+    echo ================================
     echo.
-    echo 🔍 Common solutions:
-    echo • Make sure you have internet connection
-    echo • Try running this file as administrator
-    echo • Check if antivirus is blocking the program
-    echo • Ensure all Python packages are properly installed
-    echo.
-    echo 🔧 Debug information:
-    echo • Python version:
-    python --version 2>nul || echo   Python not found in PATH
-    echo • Current directory: %CD%
-    echo • main.py exists: Yes
-    echo.
-    echo 🔄 You can try:
-    echo • Running: python main.py
-    echo • Or: fix_python313.bat (for Python 3.13 issues)
-    echo • Or: check_packages.py (to verify packages)
 )
 
+:: Handle different exit scenarios with detailed diagnosis
+if %app_exit_code% equ 0 (
+    echo ✅ Program completed successfully
+) else (
+    echo ❌ PROGRAM ERROR DETECTED >>error_log.txt
+    echo ❌ Program failed with error code: %app_exit_code%
+    echo.
+    echo 🔍 ERROR ANALYSIS:
+    
+    if %app_exit_code% equ 1 (
+        echo • Error code 1: General error or exception
+    ) else if %app_exit_code% equ 2 (
+        echo • Error code 2: Missing file or import error
+    ) else if %app_exit_code% equ 9009 (
+        echo • Error code 9009: Python command not found
+    ) else (
+        echo • Error code %app_exit_code%: Unexpected error
+    )
+    
+    echo.
+    echo 💡 TROUBLESHOOTING STEPS:
+    echo 1. Check if antivirus is blocking the program
+    echo 2. Run this file as administrator
+    echo 3. Ensure internet connection is working
+    echo 4. Try: python main.py (manually)
+    echo 5. Check if Windows Defender blocked files
+    echo.
+    echo Application error: Exit code %app_exit_code% >>error_log.txt
+)
+
+:: Always show final status
 echo.
-echo Thanks for using YouTube Downloader!
+echo 📋 FINAL STATUS:
+echo • Setup completed: Yes
+echo • Python working: Yes  
+echo • Packages installed: Yes
+echo • Application launched: %app_exit_code%
+echo • Error log: 
+if exist error_log.txt (echo   Yes - check error_log.txt) else (echo   No errors logged)
+
+:force_pause
+echo.
+echo ==========================================
+echo   WINDOW WILL STAY OPEN FOR DIAGNOSIS
+echo ==========================================
+echo.
+echo 📞 If you need help:
+echo • Check error_log.txt for details
+echo • Contact: github.com/chandula04/YT-Downloader
+echo • Try running: debug_run.bat (for advanced diagnosis)
 echo.
 echo Press any key to close this window...
 pause >nul
+
+:: Cleanup
+del temp_output.txt >nul 2>&1
+del app_output.txt >nul 2>&1
+exit /b %app_exit_code%
