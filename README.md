@@ -22,8 +22,8 @@ python main.py
 
 ### 🎯 **User Experience** 
 - ✅ **Responsive Interface** - No more freezing during loading
-- � **Progress Tracking** - Real-time download progress with ETA
-- �️ **Video Previews** - See thumbnails before downloading
+- 📈 **Progress Tracking** - Real-time download progress with ETA
+- 🎬 **Video Previews** - See thumbnails before downloading
 - ⏸️ **Cancel Downloads** - Stop downloads anytime
 - 📂 **Custom Paths** - Choose your download location
 
