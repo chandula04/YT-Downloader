@@ -180,6 +180,12 @@ def main():
     print("🎬 FFmpeg Compatibility Check")
     print("=" * 30)
     
+    # HARD SKIP: If ffmpeg.exe already exists, do nothing (no delete/reinstall)
+    exe_path = Path("ffmpeg/ffmpeg.exe")
+    if exe_path.exists():
+        print("✅ Found existing FFmpeg at ffmpeg/ffmpeg.exe - skipping installation.")
+        return True
+
     # STEP 1: Test current FFmpeg first
     working, status = test_ffmpeg()
     

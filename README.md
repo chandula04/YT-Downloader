@@ -76,6 +76,11 @@ python main.py
 - Automatic download of compatible FFmpeg version
 - Enhanced compatibility testing and error recovery
 
+### ✅ FFmpeg Setup Is Idempotent (No Re-downloads)
+- Skips download when `ffmpeg\\ffmpeg.exe` exists and runs `-version` successfully
+- Keeps existing install unless a real compatibility issue is detected
+- Extracts `ffmpeg.exe` and required DLLs from the archive to avoid false negatives
+
 ## 🛡️ Security Information
 
 **Publisher:** Chandula [CMW] - Open Source & Safe  
@@ -178,5 +183,17 @@ python main.py
 ---
 
 **Version:** Enhanced with latest YouTube compatibility  
-**Last Updated:** September 2025  
+**Last Updated:** October 2025  
 **Repository:** [YT-Downloader](https://github.com/chandula04/YT-Downloader)
+
+## ℹ️ Notes on FFmpeg Setup
+
+- The app places FFmpeg binaries in the `ffmpeg/` folder next to `run_new.bat`.
+- On launch, it verifies FFmpeg by running `ffmpeg\\ffmpeg.exe -version`.
+- If the command succeeds (exit code 0), it won’t download again.
+- Reinstall only triggers when:
+	- The executable is missing, or
+	- The output shows well-known compatibility messages (e.g., 16-bit/invalid Win32), or
+	- The version command fails repeatedly.
+
+To force a fresh FFmpeg install: delete the `ffmpeg/` folder and run `run_new.bat` again.

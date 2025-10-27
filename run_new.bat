@@ -171,94 +171,17 @@ echo Performing comprehensive FFmpeg compatibility check...
 set "ffmpeg_compatible=false"
 set "ffmpeg_exists=false"
 
-:: Check if FFmpeg exists
+:: HARD SKIP: If ffmpeg.exe already exists, don't delete or reinstall
 if exist "ffmpeg\ffmpeg.exe" (
+    echo Detected existing FFmpeg at "ffmpeg\ffmpeg.exe".
+    echo Skipping installation and compatibility checks as requested.
+    set "ffmpeg_compatible=true"
+    goto ffmpeg_done
+)
+:: Check if FFmpeg exists
+if exist "ffmpeg\" (
     set "ffmpeg_exists=true"
-    echo Found existing FFmpeg installation, testing compatibility...
-    
-    :: Test FFmpeg with comprehensive error detection
-    echo Testing FFmpeg execution...
-    
-    :: Create a temporary test file to capture all errors
-    set "temp_test=temp_ffmpeg_test.txt"
-    
-    :: Try to run FFmpeg and capture any errors
-    ffmpeg\ffmpeg.exe -version >"%temp_test%" 2>&1
-    set ffmpeg_exit_code=%errorlevel%
-    
-    :: Check if the test file contains output
-    if exist "%temp_test%" (
-        :: Check for 16-bit application error or other compatibility issues
-        findstr /i "16-bit application" "%temp_test%" >nul
-        if %errorlevel% equ 0 (
-            echo [ERROR] 16-bit application compatibility issue detected!
-            echo This FFmpeg version is incompatible with your 64-bit Windows system.
-            set "ffmpeg_compatible=false"
-            goto ffmpeg_cleanup
-        )
-        
-        :: Check for other compatibility errors (use exact phrases)
-        findstr /i /C:"not compatible" /C:"invalid win32" /C:"cannot execute" "%temp_test%" >nul
-        if %errorlevel% equ 0 (
-            echo [ERROR] FFmpeg compatibility issue detected!
-            echo This FFmpeg version is not compatible with your system.
-            set "ffmpeg_compatible=false"
-            goto ffmpeg_cleanup
-        )
-        
-        :: Check for successful version output
-        findstr /i /C:"ffmpeg version" "%temp_test%" >nul
-        if %errorlevel% equ 0 (
-            if !ffmpeg_exit_code! equ 0 (
-                echo [OK] FFmpeg is compatible and working!
-                set "ffmpeg_compatible=true"
-                del "%temp_test%" 2>nul
-                goto ffmpeg_done
-            )
-        )
-        
-        :: Clean up test file
-        del "%temp_test%" 2>nul
-    )
-    
-    :: If we reach here, FFmpeg exists but has issues
-    echo [WARNING] FFmpeg exists but compatibility test failed
-    echo Exit code: !ffmpeg_exit_code!
-    set "ffmpeg_compatible=false"
-    
-    :ffmpeg_cleanup
-    echo.
-    echo COMPATIBILITY ISSUE DETECTED - FIXING AUTOMATICALLY
-    echo ====================================================
-    echo.
-    echo The current FFmpeg installation has compatibility issues.
-    echo Common causes:
-    echo - Wrong architecture (32-bit FFmpeg on 64-bit Windows)
-    echo - Corrupted installation
-    echo - Missing Visual C++ Redistributables
-    echo.
-    echo Removing incompatible FFmpeg and installing correct version...
-    
-    :: Force removal of incompatible FFmpeg
-    if exist "ffmpeg" (
-        echo Removing incompatible FFmpeg installation...
-        rmdir /s /q "ffmpeg" 2>nul
-        if exist "ffmpeg" (
-            echo Trying alternative removal method...
-            del /f /q "ffmpeg\*.*" 2>nul
-            rmdir "ffmpeg" 2>nul
-        )
-        
-        if exist "ffmpeg" (
-            echo [WARNING] Could not fully remove FFmpeg folder
-            echo You may need to manually delete the ffmpeg folder
-            echo Press any key to continue with installation attempt...
-            pause >nul
-        ) else (
-            echo [OK] Incompatible FFmpeg removed successfully
-        )
-    )
-    
+    echo Found FFmpeg folder but no executable. Will install fresh version...
 ) else (
     echo No existing FFmpeg found, will install fresh version...
 )
