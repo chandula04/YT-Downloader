@@ -64,6 +64,9 @@ class YtDlpHandler:
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        import time
+        start_time = time.time()
+
         def hook(d):
             if not progress_callback:
                 return
@@ -74,10 +77,12 @@ class YtDlpHandler:
                     pct = float(d.get('_percent_str', '0').strip().replace('%', '') or 0.0)
                     speed = d.get('speed', 0.0) or 0.0  # bytes/sec
                     speed_mbps = float(speed) / (1024 * 1024) if speed else 0.0
-                    eta = int(d.get('eta', 0) or 0)
-                    progress_callback(downloaded, total, pct, speed_mbps, eta, "Downloading with yt-dlp...")
+                    elapsed = int(time.time() - start_time)
+                    # Don't pass custom_text during download so UI shows size/speed
+                    progress_callback(downloaded, total, pct, speed_mbps, elapsed, None)
                 elif d.get('status') == 'finished':
-                    progress_callback(0, 0, 100, 0, 0, "Merging/Finalizing...")
+                    # Indicate merging stage
+                    progress_callback(0, 0, 95, 0, 0, "Processing with FFmpeg...")
             except Exception:
                 # Avoid breaking yt-dlp hook chain
                 pass
@@ -112,6 +117,9 @@ class YtDlpHandler:
         try:
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
+            # Final completion update
+            if progress_callback:
+                progress_callback(0, 0, 100, 0, 0, "Completed")
             return True
         except Exception as e:
             print(f"yt-dlp download failed: {e}")
