@@ -8,6 +8,7 @@ customtkinter>=5.2.2
 
 # YouTube downloading (updated for better anti-bot handling)
 pytubefix>=6.0.0
+yt-dlp>=2024.9.27
 
 # Image processing
 Pillow>=10.0.0

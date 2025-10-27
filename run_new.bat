@@ -111,8 +111,8 @@ if exist "check_packages.py" (
 echo Installing packages manually...
 echo.
 
-set packages=setuptools customtkinter pytubefix Pillow requests
-set /a total=5
+set packages=setuptools customtkinter pytubefix Pillow requests yt-dlp
+set /a total=6
 set /a current=0
 
 for %%p in (%packages%) do (
@@ -126,6 +126,7 @@ for %%p in (%packages%) do (
     if "%%p"=="pytubefix" echo    Purpose: YouTube download engine...
     if "%%p"=="Pillow" echo    Purpose: Image processing...
     if "%%p"=="requests" echo    Purpose: Network requests...
+    if "%%p"=="yt-dlp" echo    Purpose: Robust download fallback (fixes 403)...
     
     python -m pip install --upgrade %%p --quiet
     if %errorlevel% equ 0 (
@@ -144,7 +145,7 @@ for %%p in (%packages%) do (
 
 :packages_done
 echo Verifying all packages work together...
-python -c "import customtkinter, pytubefix, PIL, requests; print('[OK] All packages verified and ready!')" 2>nul
+python -c "import customtkinter, pytubefix, PIL, requests, yt_dlp; print('[OK] All packages verified and ready!')" 2>nul
 if %errorlevel% neq 0 (
     echo Warning: Package verification failed, attempting fix...
     python -m pip install --force-reinstall setuptools customtkinter pytubefix Pillow requests --quiet

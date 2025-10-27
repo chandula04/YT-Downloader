@@ -527,22 +527,39 @@ class DownloadManager:
                     
                 except Exception as retry_error:
                     print(f"❌ Download retry also failed: {retry_error}")
-                    enhanced_error = (
-                        "🚫 YouTube Access Blocked (HTTP 403: Forbidden)\n\n"
-                        "This happens when YouTube restricts downloads for this video.\n"
-                        "We tried multiple download strategies but all were blocked.\n\n"
-                        "💡 Solutions to try:\n"
-                        "1. Wait 5-10 minutes and try again\n"
-                        "2. Try a different video first\n"
-                        "3. Use a VPN to change your location\n"
-                        "4. Check if the video is region-restricted\n"
-                        "5. Try again later - YouTube limits may reset\n\n"
-                        "🔄 The app automatically tried multiple download methods,\n"
-                        "but YouTube is currently blocking access to this video."
-                    )
-                    if error_callback:
-                        error_callback(enhanced_error)
-                    return
+                    print("🛡️ Falling back to yt-dlp (robust mode)...")
+                    try:
+                        from utils.ytdlp_handler import YtDlpHandler
+                        ffmpeg_path = self.ffmpeg_handler.get_ffmpeg_path()
+                        ok = YtDlpHandler.download_video(
+                            video_url,
+                            file_manager.get_download_path(),
+                            quality_str,
+                            is_audio,
+                            self.progress_callback,
+                            ffmpeg_path,
+                        )
+                        if ok:
+                            if success_callback:
+                                success_callback("Download completed via yt-dlp fallback!")
+                            return
+                        else:
+                            raise Exception("yt-dlp fallback failed")
+                    except Exception as yerr:
+                        print(f"❌ yt-dlp fallback failed: {yerr}")
+                        enhanced_error = (
+                            "🚫 YouTube Access Blocked (HTTP 403: Forbidden)\n\n"
+                            "We tried: standard clients, download-optimized clients, and yt-dlp fallback,\n"
+                            "but all methods were blocked or failed.\n\n"
+                            "💡 Try:\n"
+                            "• Wait 5-10 minutes and try again\n"
+                            "• Use a VPN or different network\n"
+                            "• Try a different video (private/region-restricted videos may fail)\n"
+                            "• Update and relaunch the app\n"
+                        )
+                        if error_callback:
+                            error_callback(enhanced_error)
+                        return
             
             # Handle other common YouTube errors
             elif "throttling" in error_message.lower():
