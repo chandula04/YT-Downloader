@@ -15,6 +15,7 @@ class LoadingPopup(ctk.CTkToplevel):
         
         self.parent = parent
         self.cancelled = False
+        self._disabled_parent = False
         
         # Configure window
         self.title(title)
@@ -24,6 +25,17 @@ class LoadingPopup(ctk.CTkToplevel):
         # Make popup modal
         self.transient(parent)
         self.grab_set()
+        # Also disable parent window to prevent accidental clicks causing freezes (Windows-specific)
+        try:
+            self.parent.attributes('-disabled', True)
+            self._disabled_parent = True
+        except:
+            pass
+        # When user clicks the X, treat as cancel and close
+        try:
+            self.protocol("WM_DELETE_WINDOW", self._on_close)
+        except:
+            pass
         
         # Center the popup
         self._center_window()
@@ -191,6 +203,8 @@ class LoadingPopup(ctk.CTkToplevel):
         self.cancelled = True
         self.cancel_button.configure(text="Cancelling...", state="disabled")
         self.set_status("Cancelling playlist loading...")
+        # Close immediately so user can continue; background thread sees the cancel flag
+        self.close_popup()
     
     def is_cancelled(self):
         """Check if loading was cancelled"""
@@ -199,8 +213,22 @@ class LoadingPopup(ctk.CTkToplevel):
     def close_popup(self):
         """Close the popup"""
         try:
+            if self._disabled_parent:
+                try:
+                    self.parent.attributes('-disabled', False)
+                except:
+                    pass
             self.grab_release()
             self.destroy()
+        except:
+            pass
+
+    def _on_close(self):
+        """Handle window close (X button): cancel and close immediately"""
+        try:
+            if not self.cancelled:
+                self.cancelled = True
+            self.close_popup()
         except:
             pass
     

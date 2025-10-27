@@ -522,7 +522,7 @@ class DownloadManager:
                     self.download_single_video(video, quality_str, is_audio, file_manager.get_download_path())
                     
                     if success_callback:
-                        success_callback("Download completed after retry!")
+                        success_callback("Download completed!")
                     return
                     
                 except Exception as retry_error:
@@ -541,7 +541,7 @@ class DownloadManager:
                         )
                         if ok:
                             if success_callback:
-                                success_callback("Download completed via yt-dlp fallback!")
+                                success_callback("Download completed!")
                             return
                         else:
                             raise Exception("yt-dlp fallback failed")
