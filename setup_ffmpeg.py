@@ -28,7 +28,8 @@ def test_ffmpeg():
         result = subprocess.run([str(ffmpeg_path), '-version'], 
                                capture_output=True, timeout=10, text=True)
         
-        if result.returncode == 0 and 'ffmpeg version' in result.stdout.lower():
+        combined = (result.stdout or "") + "\n" + (result.stderr or "")
+        if result.returncode == 0 and 'ffmpeg version' in combined.lower():
             print("✅ FFmpeg is working perfectly!")
             return True, "working"
         else:
@@ -119,28 +120,46 @@ def download_ffmpeg(arch):
                         percent = (downloaded / total_size) * 100
                         print(f"\r📥 Download Progress: {percent:.1f}%", end='', flush=True)
         
-        print("\n📦 Extracting FFmpeg...")
+        print("\n📦 Extracting FFmpeg (including required DLLs)...")
         ffmpeg_found = False
         with zipfile.ZipFile("ffmpeg/temp.zip", 'r') as zip_ref:
             # First, let's see what files are in the zip
             all_files = [f.filename for f in zip_ref.filelist]
             print(f"🔍 Found {len(all_files)} files in archive")
             
-            # Look for ffmpeg.exe in any subdirectory
-            for file in zip_ref.filelist:
-                if file.filename.endswith('ffmpeg.exe') or 'ffmpeg.exe' in file.filename:
-                    print(f"✅ Found FFmpeg at: {file.filename}")
-                    with zip_ref.open(file) as source:
-                        with open("ffmpeg/ffmpeg.exe", "wb") as target:
-                            target.write(source.read())
-                    ffmpeg_found = True
+            # Find ffmpeg.exe and extract its bin directory contents
+            exe_path_in_zip = None
+            for name in all_files:
+                low = name.lower().replace('\\', '/')
+                if low.endswith('/bin/ffmpeg.exe') or low.endswith('ffmpeg.exe'):
+                    exe_path_in_zip = name
+                    print(f"✅ Found FFmpeg at: {name}")
                     break
             
-            if not ffmpeg_found:
-                # Show first few files to help debug
+            if not exe_path_in_zip:
                 print("❌ FFmpeg.exe not found! Archive contents (first 10 files):")
                 for i, filename in enumerate(all_files[:10]):
                     print(f"  - {filename}")
+                return False
+            
+            # Determine bin directory prefix and extract all files from it
+            norm = exe_path_in_zip.replace('\\', '/')
+            bin_prefix = norm.rsplit('/', 1)[0]
+            if not bin_prefix.endswith('/'):
+                bin_prefix += '/'
+            extracted = 0
+            for file in zip_ref.filelist:
+                name = file.filename.replace('\\', '/')
+                if name.startswith(bin_prefix) and not name.endswith('/'):
+                    target = Path("ffmpeg") / Path(name).name
+                    with zip_ref.open(file) as source, open(target, "wb") as out:
+                        out.write(source.read())
+                    extracted += 1
+                    if name.lower().endswith('ffmpeg.exe'):
+                        ffmpeg_found = True
+            
+            if not ffmpeg_found or extracted == 0:
+                print("❌ Failed to extract FFmpeg bin contents")
                 return False
         
         # Clean up temp file only if extraction succeeded

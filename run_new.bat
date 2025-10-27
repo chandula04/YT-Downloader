@@ -9,6 +9,9 @@ chcp 65001 >nul 2>&1
 :: Enable delayed expansion for variables
 setlocal EnableDelayedExpansion
 
+:: Always run from the script's directory to keep relative paths stable
+cd /d "%~dp0"
+
 :: ====================================================
 ::  YouTube Downloader - SETUP & LAUNCH
 ::  Publisher: Chandula [CMW]
@@ -194,8 +197,8 @@ if exist "ffmpeg\ffmpeg.exe" (
             goto ffmpeg_cleanup
         )
         
-        :: Check for other compatibility errors
-        findstr /i "not compatible\|invalid win32\|cannot execute" "%temp_test%" >nul
+        :: Check for other compatibility errors (use exact phrases)
+        findstr /i /C:"not compatible" /C:"invalid win32" /C:"cannot execute" "%temp_test%" >nul
         if %errorlevel% equ 0 (
             echo [ERROR] FFmpeg compatibility issue detected!
             echo This FFmpeg version is not compatible with your system.
@@ -204,7 +207,7 @@ if exist "ffmpeg\ffmpeg.exe" (
         )
         
         :: Check for successful version output
-        findstr /i "ffmpeg version" "%temp_test%" >nul
+        findstr /i /C:"ffmpeg version" "%temp_test%" >nul
         if %errorlevel% equ 0 (
             if !ffmpeg_exit_code! equ 0 (
                 echo [OK] FFmpeg is compatible and working!

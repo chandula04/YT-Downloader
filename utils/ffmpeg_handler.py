@@ -84,15 +84,37 @@ class FFmpegHandler:
             
             print("📦 Extracting FFmpeg...")
             
-            # Extract FFmpeg
+            # Extract FFmpeg (ffmpeg.exe + required DLLs from bin directory)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                # Find ffmpeg.exe in the archive
-                for file_info in zip_ref.filelist:
-                    if file_info.filename.endswith('ffmpeg.exe'):
-                        # Extract only ffmpeg.exe to the ffmpeg directory
-                        file_info.filename = 'ffmpeg.exe'
-                        zip_ref.extract(file_info, ffmpeg_dir)
+                members = [f.filename for f in zip_ref.filelist]
+                # Try to find ffmpeg.exe location (usually in .../bin/ffmpeg.exe)
+                exe_member = None
+                for name in members:
+                    low = name.lower().replace('\\', '/')
+                    if low.endswith('/bin/ffmpeg.exe') or low.endswith('ffmpeg.exe'):
+                        exe_member = name
                         break
+                if not exe_member:
+                    print("❌ Could not locate ffmpeg.exe inside archive")
+                    return False
+                # Determine bin directory prefix
+                norm = exe_member.replace('\\', '/')
+                bin_prefix = norm.rsplit('/', 1)[0]  # path to .../bin
+                # Ensure ends with '/'
+                if not bin_prefix.endswith('/'):
+                    bin_prefix = bin_prefix + '/'
+                extracted_any = False
+                for file in zip_ref.filelist:
+                    name = file.filename.replace('\\', '/')
+                    if name.startswith(bin_prefix) and not name.endswith('/'):
+                        # Extract file into ffmpeg_dir using only the basename
+                        target_path = ffmpeg_dir / Path(name).name
+                        with zip_ref.open(file) as src, open(target_path, 'wb') as dst:
+                            dst.write(src.read())
+                            extracted_any = True
+                if not extracted_any:
+                    print("❌ Failed to extract FFmpeg bin files")
+                    return False
             
             # Clean up zip file
             zip_path.unlink(missing_ok=True)
