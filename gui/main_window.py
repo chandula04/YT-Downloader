@@ -25,6 +25,7 @@ class MainWindow(ctk.CTk):
         self.download_manager = DownloadManager()
         self.download_manager.set_progress_callback(self._on_progress_update)
         self.download_manager.set_batch_progress_callback(self._on_batch_progress_update)
+        self._apply_tv_mode_setting(user_settings.get("tv_optimized", True))
         
         # Set up responsive window
         self.title(APP_TITLE)
@@ -329,9 +330,17 @@ class MainWindow(ctk.CTk):
         if hasattr(self, 'video_preview'):
             self.video_preview.refresh_theme()
     
+    def _apply_tv_mode_setting(self, enabled):
+        """Toggle TV optimized merging for the active session."""
+        self.download_manager.set_tv_optimized(bool(enabled))
+    
     def _open_settings(self):
         """Open the settings dialog"""
-        settings_dialog = SettingsDialog(self, on_theme_change=self._apply_theme)
+        settings_dialog = SettingsDialog(
+            self,
+            on_theme_change=self._apply_theme,
+            on_tv_mode_change=self._apply_tv_mode_setting
+        )
         # Update path display after dialog closes
         self.after(100, self._update_path_display)
     

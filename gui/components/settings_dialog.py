@@ -10,11 +10,13 @@ from config.user_settings import user_settings
 class SettingsDialog(ctk.CTkToplevel):
     """Settings dialog window"""
     
-    def __init__(self, parent, on_theme_change=None):
+    def __init__(self, parent, on_theme_change=None, on_tv_mode_change=None):
         super().__init__(parent)
         
         self.parent = parent
         self.on_theme_change = on_theme_change
+        self.on_tv_mode_change = on_tv_mode_change
+        self.tv_optimized_var = ctk.BooleanVar(value=user_settings.get("tv_optimized", True))
         
         # Window setup
         self.title("Settings")
@@ -81,6 +83,9 @@ class SettingsDialog(ctk.CTkToplevel):
         
         # Path Section
         self._setup_path_section(content_frame)
+        
+        # Video Output Section
+        self._setup_video_section(content_frame)
         
         # Buttons - always at the bottom
         self._setup_buttons(main_frame)
@@ -168,6 +173,36 @@ class SettingsDialog(ctk.CTkToplevel):
             hover_color="#45a049"
         )
         browse_button.pack(side="right")
+
+    def _setup_video_section(self, parent):
+        """Setup video output preferences"""
+        video_frame = ctk.CTkFrame(parent)
+        video_frame.pack(fill="x", pady=(0, 20))
+        
+        section_label = ctk.CTkLabel(
+            video_frame,
+            text="Video Output",
+            font=("Arial", 18, "bold")
+        )
+        section_label.pack(anchor="w", padx=20, pady=(20, 10))
+        
+        tv_switch = ctk.CTkSwitch(
+            video_frame,
+            text="TV Optimized (H.264/AAC, maximum compatibility)",
+            variable=self.tv_optimized_var,
+            font=("Arial", 14),
+            onvalue=True,
+            offvalue=False
+        )
+        tv_switch.pack(anchor="w", padx=20, pady=(10, 5))
+        
+        helper_label = ctk.CTkLabel(
+            video_frame,
+            text="Disable for faster merges using original streams (less TV friendly)",
+            font=("Arial", 12),
+            text_color="#A0A0A0"
+        )
+        helper_label.pack(anchor="w", padx=20, pady=(0, 15))
     
     def _setup_buttons(self, parent):
         """Setup dialog buttons - always at bottom"""
@@ -230,6 +265,12 @@ class SettingsDialog(ctk.CTkToplevel):
             # Save path
             new_path = self.path_var.get()
             user_settings.set_download_path(new_path)
+
+            # Save TV optimization preference
+            tv_enabled = bool(self.tv_optimized_var.get())
+            user_settings.set("tv_optimized", tv_enabled)
+            if self.on_tv_mode_change:
+                self.on_tv_mode_change(tv_enabled)
 
             # Ensure download path exists
             if not user_settings.ensure_download_path_exists():

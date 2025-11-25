@@ -9,6 +9,7 @@ from utils.helpers import safe_filename, parse_quality_string
 from utils.ffmpeg_handler import FFmpegHandler
 from core.youtube_handler import YouTubeHandler
 from core.file_manager import file_manager
+from config.user_settings import user_settings
 
 
 class DownloadManager:
@@ -30,6 +31,11 @@ class DownloadManager:
         self.batch_progress_callback = None
         self.current_video_index = -1
         self.total_videos_in_batch = 0
+        self.tv_optimized = user_settings.get("tv_optimized", True)
+
+    def set_tv_optimized(self, enabled):
+        """Enable or disable TV-optimized transcoding."""
+        self.tv_optimized = bool(enabled)
     
     def set_progress_callback(self, callback):
         """
@@ -171,6 +177,7 @@ class DownloadManager:
         # Check if cancelled during download
         if self.stop_flag:
             self.ffmpeg_handler.cleanup_temp_files(video_path)
+            self.ffmpeg_handler.cleanup_default_temp_files(output_path)
             raise Exception("Download cancelled")
         
         # Download audio
@@ -181,6 +188,7 @@ class DownloadManager:
         # Check if cancelled during download
         if self.stop_flag:
             self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+            self.ffmpeg_handler.cleanup_default_temp_files(output_path)
             raise Exception("Download cancelled")
         
         # Merge with FFmpeg with progress tracking
@@ -194,11 +202,18 @@ class DownloadManager:
                     # Call with proper signature: downloaded, total, percentage, speed, elapsed, custom_text
                     self.progress_callback(0, 0, percentage, 0, 0, f"🎬 {stage}")
             
-            self.ffmpeg_handler.merge_video_audio(video_path, audio_path, final_output_path, ffmpeg_progress)
+            self.ffmpeg_handler.merge_video_audio(
+                video_path,
+                audio_path,
+                final_output_path,
+                ffmpeg_progress,
+                tv_optimized=self.tv_optimized
+            )
         except OSError as e:
             # Handle Windows compatibility errors specifically
             if "WinError 216" in str(e) or "not compatible with the version of Windows" in str(e):
                 self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+                self.ffmpeg_handler.cleanup_default_temp_files(output_path)
                 raise Exception(
                     "FFmpeg compatibility error detected!\n\n"
                     "This happens when FFmpeg version doesn't match your Windows.\n\n"
@@ -210,9 +225,11 @@ class DownloadManager:
                 )
             else:
                 self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+                self.ffmpeg_handler.cleanup_default_temp_files(output_path)
                 raise Exception(f"FFmpeg error: {str(e)}")
         except Exception as e:
             self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+            self.ffmpeg_handler.cleanup_default_temp_files(output_path)
             # Check if it's a compatibility issue
             if "WinError 216" in str(e) or "not compatible" in str(e):
                 raise Exception(
@@ -229,108 +246,72 @@ class DownloadManager:
         finally:
             # Clean up temporary files
             self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+            self.ffmpeg_handler.cleanup_default_temp_files(output_path)
     
     def _download_adaptive_stream(self, video_stream, video, output_path):
         """Download adaptive stream and merge with audio"""
         video_title = video.title
         safe_name = safe_filename(video_title)
         
-        # Download video stream
-        self.current_download_size = video_stream.filesize if hasattr(video_stream, 'filesize') else 0
-        video.register_on_progress_callback(self.progress_tracker)
-        video_path = video_stream.download(output_path=output_path, filename="video_temp.mp4")
-        
-        # Check if cancelled
-        if self.stop_flag:
-            try:
-                os.remove(video_path)
-            except:
-                pass
-            raise Exception("Download cancelled")
-        
-        # Get audio stream
-        audio_stream = video.streams.filter(only_audio=True, file_extension='mp4').first()
-        if not audio_stream:
-            audio_stream = video.streams.filter(only_audio=True).first()
-        
-        if audio_stream:
-            # Download audio
-            self.current_download_size = audio_stream.filesize if hasattr(audio_stream, 'filesize') else 0
-            audio_path = audio_stream.download(output_path=output_path, filename="audio_temp.mp4")
+        video_path = None
+        audio_path = None
+        try:
+            # Download video stream
+            self.current_download_size = video_stream.filesize if hasattr(video_stream, 'filesize') else 0
+            video.register_on_progress_callback(self.progress_tracker)
+            video_path = video_stream.download(output_path=output_path, filename="video_temp.mp4")
             
-            # Check if cancelled
             if self.stop_flag:
-                try:
-                    os.remove(video_path)
-                    os.remove(audio_path)
-                except:
-                    pass
+                self.ffmpeg_handler.cleanup_temp_files(video_path)
+                self.ffmpeg_handler.cleanup_default_temp_files(output_path)
                 raise Exception("Download cancelled")
             
-            # Merge using FFmpeg with error handling
-            output_file = os.path.join(output_path, safe_name + '.mp4')
-            try:
-                self.ffmpeg_handler.merge_video_audio(video_path, audio_path, output_file)
-            except OSError as e:
-                # Handle Windows compatibility errors
-                if "WinError 216" in str(e) or "not compatible with the version of Windows" in str(e):
-                    # Clean up temp files
-                    try:
-                        os.remove(video_path)
-                        os.remove(audio_path)
-                    except:
-                        pass
-                    raise Exception(
-                        "FFmpeg Windows compatibility error!\n\n"
-                        "Your FFmpeg version doesn't match your Windows.\n\n"
-                        "Quick fix:\n"
-                        "1. Close the app\n"
-                        "2. Delete the 'ffmpeg' folder\n"
-                        "3. Restart the app\n\n"
-                        "A compatible FFmpeg will be downloaded automatically."
-                    )
-                else:
-                    # Clean up temp files
-                    try:
-                        os.remove(video_path)
-                        os.remove(audio_path)
-                    except:
-                        pass
-                    raise Exception(f"FFmpeg error: {str(e)}")
-            except Exception as e:
-                # Clean up temp files
+            audio_stream = video.streams.filter(only_audio=True, file_extension='mp4').order_by('abr').desc().first()
+            if not audio_stream:
+                audio_stream = video.streams.filter(only_audio=True).order_by('abr').desc().first()
+            
+            if audio_stream:
+                self.current_download_size = audio_stream.filesize if hasattr(audio_stream, 'filesize') else 0
+                audio_path = audio_stream.download(output_path=output_path, filename="audio_temp.mp4")
+                
+                if self.stop_flag:
+                    self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+                    self.ffmpeg_handler.cleanup_default_temp_files(output_path)
+                    raise Exception("Download cancelled")
+                
+                output_file = os.path.join(output_path, safe_name + '.mp4')
+                self.ffmpeg_handler.merge_video_audio(
+                    video_path,
+                    audio_path,
+                    output_file,
+                    tv_optimized=self.tv_optimized
+                )
+                print(f"✅ Adaptive video merged: {output_file}")
+            else:
+                final_path = os.path.join(output_path, safe_name + '.mp4')
                 try:
-                    os.remove(video_path)
-                    os.remove(audio_path)
+                    os.rename(video_path, final_path)
+                    print(f"✅ Video-only file saved: {final_path}")
                 except:
-                    pass
-                    
-                # Check for compatibility issues
-                if "WinError 216" in str(e) or "not compatible" in str(e):
-                    raise Exception(
-                        "Windows compatibility detected!\n\n"
-                        "Solution: Delete 'ffmpeg' folder and restart app.\n"
-                        "The correct FFmpeg version will be downloaded."
-                    )
-                else:
-                    raise e
-            
-            # Clean up temp files
-            try:
-                os.remove(video_path)
-                os.remove(audio_path)
-            except:
-                pass
-            
-            print(f"✅ Adaptive video merged: {output_file}")
-        else:
-            # No audio available, just rename video file
-            final_path = os.path.join(output_path, safe_name + '.mp4')
-            try:
-                os.rename(video_path, final_path)
-                print(f"✅ Video-only file saved: {final_path}")
-            except:
-                print(f"✅ Video saved: {video_path}")
+                    print(f"✅ Video saved: {video_path}")
+                finally:
+                    self.ffmpeg_handler.cleanup_default_temp_files(output_path)
+        except OSError as e:
+            if "WinError 216" in str(e) or "not compatible with the version of Windows" in str(e):
+                raise Exception(
+                    "FFmpeg Windows compatibility error!\n\n"
+                    "Your FFmpeg version doesn't match your Windows.\n\n"
+                    "Quick fix:\n"
+                    "1. Close the app\n"
+                    "2. Delete the 'ffmpeg' folder\n"
+                    "3. Restart the app\n\n"
+                    "A compatible FFmpeg will be downloaded automatically."
+                )
+            else:
+                raise Exception(f"FFmpeg error: {str(e)}")
+        finally:
+            self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
+            self.ffmpeg_handler.cleanup_default_temp_files(output_path)
     
     def download_selected_videos(self, selected_videos, success_callback=None, error_callback=None):
         """

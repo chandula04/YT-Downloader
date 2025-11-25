@@ -25,7 +25,8 @@ class UserSettings:
             "window_geometry": "1400x800",
             "window_maximized": False,
             "auto_create_download_folder": True,
-            "remember_window_state": True
+            "remember_window_state": True,
+            "tv_optimized": True
         }
         
         # Load or create settings

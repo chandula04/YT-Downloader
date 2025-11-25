@@ -58,9 +58,19 @@ class QualitySelector(ctk.CTkFrame):
         self.quality_options = options
         self.quality_combo.configure(values=options)
         
-        # Set default selection to highest quality
         if options:
-            self.quality_combo.set(options[0])
+            preferred = None
+            targets = ["1080p", "2160p", "1440p", "720p"]
+            for target in targets:
+                for option in options:
+                    if option.startswith(target):
+                        preferred = option
+                        break
+                if preferred:
+                    break
+            if not preferred:
+                preferred = options[0]
+            self.quality_combo.set(preferred)
     
     def get_selected_quality(self):
         """

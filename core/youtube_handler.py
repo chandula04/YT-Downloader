@@ -939,10 +939,12 @@ class YouTubeHandler:
         Returns:
             Stream: Best audio stream
         """
-        return video.streams.filter(
-            adaptive=True,
-            only_audio=True
-        ).order_by('abr').desc().first()
+        audio_streams = video.streams.filter(adaptive=True, only_audio=True)
+        mp4_audio = audio_streams.filter(file_extension='mp4')
+        preferred = mp4_audio.order_by('abr').desc().first()
+        if preferred:
+            return preferred
+        return audio_streams.order_by('abr').desc().first()
     
     def get_audio_only_stream(self, video):
         """
