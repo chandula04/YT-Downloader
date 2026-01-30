@@ -71,8 +71,8 @@ class LoadingPopup(ctk.CTkToplevel):
     def _setup_ui(self, message):
         """Setup the popup UI"""
         # Main container
-        main_frame = ctk.CTkFrame(self)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        main_frame = ctk.CTkFrame(self, corner_radius=0, border_width=0)
+        main_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
         # Loading icon/animation
         self.loading_label = ctk.CTkLabel(
@@ -114,7 +114,7 @@ class LoadingPopup(ctk.CTkToplevel):
         self.video_label.pack(pady=(0, 15))
         
         # Progress bar
-        self.progress_bar = ctk.CTkProgressBar(main_frame, width=300)
+        self.progress_bar = ctk.CTkProgressBar(main_frame, width=300, corner_radius=0, border_width=0)
         self.progress_bar.pack(pady=(0, 15))
         self.progress_bar.set(0)
         
@@ -125,6 +125,8 @@ class LoadingPopup(ctk.CTkToplevel):
             command=self._cancel_loading,
             width=100,
             height=32,
+            corner_radius=8,
+            border_width=0,
             fg_color="#FF5722",
             hover_color="#E64A19"
         )

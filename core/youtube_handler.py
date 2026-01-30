@@ -592,6 +592,46 @@ class YouTubeHandler:
                     "240p - Adaptive", 
                     "144p - Adaptive"
                 ]
+
+    def get_quality_options_fast(self, video):
+        """Fast resolution list without size calculation to avoid delays."""
+        try:
+            streams = video.streams.filter(file_extension='mp4')
+            adaptive_streams = streams.filter(adaptive=True, only_video=True)
+
+            available_resolutions = []
+            for stream in adaptive_streams:
+                res = getattr(stream, 'resolution', None)
+                if res and res not in available_resolutions:
+                    available_resolutions.append(res)
+
+            if not available_resolutions:
+                return self.get_simplified_quality_options(video)
+
+            available_resolutions.sort(key=resolution_key, reverse=True)
+
+            options = []
+            for resolution in available_resolutions:
+                label = ""
+                if resolution == "4320p":
+                    label = " (8K)"
+                elif resolution == "2160p":
+                    label = " (4K)"
+                elif resolution == "1440p":
+                    label = " (2K)"
+                elif resolution == "1080p":
+                    label = " (Full HD)"
+                elif resolution == "720p":
+                    label = " (HD)"
+                elif resolution == "480p":
+                    label = " (SD)"
+
+                options.append(f"{resolution} - Adaptive{label}")
+
+            return options
+        except Exception as e:
+            print(f"Error getting fast quality options: {e}")
+            return self.get_simplified_quality_options(video)
     
     def get_simplified_quality_options(self, video):
         """

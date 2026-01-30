@@ -16,7 +16,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.parent = parent
         self.on_theme_change = on_theme_change
         self.on_tv_mode_change = on_tv_mode_change
-        self.tv_optimized_var = ctk.BooleanVar(value=user_settings.get("tv_optimized", True))
+        self.tv_optimized_var = ctk.BooleanVar(value=user_settings.get("tv_optimized", False))
         
         # Window setup
         self.title("Settings")
@@ -57,8 +57,8 @@ class SettingsDialog(ctk.CTkToplevel):
     def _setup_ui(self):
         """Setup the settings UI"""
         # Main container
-        main_frame = ctk.CTkFrame(self, corner_radius=15)
-        main_frame.pack(fill="both", expand=True, padx=25, pady=25)
+        main_frame = ctk.CTkFrame(self, corner_radius=0, border_width=0)
+        main_frame.pack(fill="both", expand=True, padx=15, pady=15)
         
         # Configure grid layout to ensure buttons are always visible
         main_frame.grid_rowconfigure(0, weight=0)  # Title - fixed size
@@ -156,7 +156,8 @@ class SettingsDialog(ctk.CTkToplevel):
             textvariable=self.path_var,
             height=45,
             font=("Arial", 12),
-            corner_radius=8
+            corner_radius=8,
+            border_width=0
         )
         self.path_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
         
@@ -169,6 +170,7 @@ class SettingsDialog(ctk.CTkToplevel):
             width=100,
             font=("Arial", 14, "bold"),
             corner_radius=8,
+            border_width=0,
             fg_color="#4CAF50",
             hover_color="#45a049"
         )
@@ -223,7 +225,8 @@ class SettingsDialog(ctk.CTkToplevel):
             height=50,
             width=120,
             font=("Arial", 16, "bold"),
-            corner_radius=12,
+            corner_radius=8,
+            border_width=0,
             fg_color="#666666",
             hover_color="#555555"
         )
@@ -237,7 +240,8 @@ class SettingsDialog(ctk.CTkToplevel):
             height=50,
             width=180,
             font=("Arial", 18, "bold"),
-            corner_radius=12,
+            corner_radius=8,
+            border_width=0,
             fg_color="#4CAF50",
             hover_color="#45a049"
         )

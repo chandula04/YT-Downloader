@@ -25,7 +25,7 @@ class MainWindow(ctk.CTk):
         self.download_manager = DownloadManager()
         self.download_manager.set_progress_callback(self._on_progress_update)
         self.download_manager.set_batch_progress_callback(self._on_batch_progress_update)
-        self._apply_tv_mode_setting(user_settings.get("tv_optimized", True))
+        self._apply_tv_mode_setting(user_settings.get("tv_optimized", False))
         
         # Set up responsive window
         self.title(APP_TITLE)
@@ -135,12 +135,12 @@ class MainWindow(ctk.CTk):
                 # Adjust container padding based on window size
                 if window_width < 1000:
                     # Smaller padding for smaller windows
-                    self.main_container.configure(corner_radius=8)
-                    padding = 10
+                    self.main_container.configure(corner_radius=0, border_width=0)
+                    padding = 0
                 else:
                     # Standard padding for larger windows
-                    self.main_container.configure(corner_radius=15)
-                    padding = 15
+                    self.main_container.configure(corner_radius=0, border_width=0)
+                    padding = 0
                 
                 self.main_container.pack_configure(padx=padding, pady=padding)
                 
@@ -160,7 +160,7 @@ class MainWindow(ctk.CTk):
     def _setup_ui(self):
         """Set up the main user interface"""
         # Main container
-        self.main_container = ctk.CTkFrame(self)
+        self.main_container = ctk.CTkFrame(self, corner_radius=0, border_width=0)
         self.main_container.pack(fill="both", expand=True, padx=15, pady=15)
         
         # Create main content area using grid for better control
@@ -169,8 +169,8 @@ class MainWindow(ctk.CTk):
         self.main_container.grid_rowconfigure(0, weight=1)
         
         # Left frame for main controls - takes full width initially
-        self.left_frame = ctk.CTkFrame(self.main_container)
-        self.left_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        self.left_frame = ctk.CTkFrame(self.main_container, corner_radius=0, border_width=0)
+        self.left_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
         
         # Right frame for playlist - positioned on the right, initially hidden
         self.playlist_panel = PlaylistPanel(self.main_container)
@@ -188,7 +188,7 @@ class MainWindow(ctk.CTk):
         self.main_container.grid_columnconfigure(1, weight=0)  # Right panel gets no space
         
         # Update left frame to take full width with no right padding
-        self.left_frame.grid_configure(padx=0)
+        self.left_frame.grid_configure(padx=15, pady=15)
         
         # Force layout update
         self.main_container.update_idletasks()
@@ -200,10 +200,10 @@ class MainWindow(ctk.CTk):
         self.main_container.grid_columnconfigure(1, weight=50)  # Right panel gets 50% space
         
         # Show playlist panel
-        self.playlist_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=0)
+        self.playlist_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 15), pady=15)
         
         # Update left frame padding to accommodate right panel
-        self.left_frame.grid_configure(padx=(0, 5))
+        self.left_frame.grid_configure(padx=(15, 5), pady=15)
         
         # Force layout update
         self.main_container.update_idletasks()
@@ -212,13 +212,14 @@ class MainWindow(ctk.CTk):
         """Create a toggle button for playlist panel on smaller screens"""
         if not hasattr(self, 'playlist_toggle_button'):
             self.playlist_toggle_button = ctk.CTkButton(
-                self.left_frame,
+                self.content_frame,
                 text="📋 Show Playlist",
                 command=self._toggle_playlist_panel,
                 height=35,
                 width=150,
                 font=("Arial", 14, "bold"),
                 corner_radius=8,
+                border_width=0,
                 fg_color="#4CAF50",
                 hover_color="#45a049"
             )
@@ -308,13 +309,23 @@ class MainWindow(ctk.CTk):
     def _on_url_change(self, event):
         """Handle URL entry changes to reset layout when empty"""
         url = self.url_entry.get().strip()
-        if not url and self.is_playlist_loaded:
-            # If URL is cleared and we're currently showing a playlist, switch back to single video mode
-            self._show_single_video_layout()
-            self.playlist_panel.hide_playlist()
-            self.is_playlist_loaded = False
-            # Also clear the video preview
-            self.video_preview.pack_forget()
+        if not url:
+            if self.is_playlist_loaded:
+                # If URL is cleared and we're currently showing a playlist, switch back to single video mode
+                self._show_single_video_layout()
+                self.playlist_panel.hide_playlist()
+                self.is_playlist_loaded = False
+            # Clear the video preview when URL is empty
+            if hasattr(self, 'video_preview'):
+                self.video_preview.clear_preview()
+            # Reset quality selector
+            if hasattr(self, 'quality_selector'):
+                self.quality_selector.clear_options()
+            # Reset controls
+            if hasattr(self, 'load_button'):
+                self.load_button.configure(text="Load Video", state="normal")
+            if hasattr(self, 'url_entry'):
+                self.url_entry.configure(state="normal")
             
     def _apply_theme(self, theme_name):
         """Apply the selected theme"""
@@ -356,21 +367,32 @@ class MainWindow(ctk.CTk):
     
     def _setup_left_panel(self):
         """Set up the left panel with main controls"""
+        # Inner content frame to add consistent left/right padding
+        self.content_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
+        self.content_frame.pack(fill="both", expand=True, padx=10, pady=10)
         # Header
         self._setup_header()
+
+        # Top row for URL input (left) and video preview (right)
+        self.top_row = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.top_row.pack(fill="x", pady=(0, 20))
+
+        self.left_controls = ctk.CTkFrame(self.top_row, fg_color="transparent")
+        self.left_controls.pack(side="left", fill="both", expand=True, padx=(0, 15))
         
         # URL Input section
         self._setup_url_input()
         
         # Video preview
-        self.video_preview = VideoPreview(self.left_frame)
+        self.video_preview = VideoPreview(self.top_row, width=420)
+        self.video_preview.set_pack_options(side="right", fill="y", padx=(0, 0), pady=0)
         
         # Quality selector
-        self.quality_selector = QualitySelector(self.left_frame)
+        self.quality_selector = QualitySelector(self.content_frame)
         self.quality_selector.pack(fill="x", pady=(0, 25))  # Increased spacing
         
         # Progress tracker
-        self.progress_tracker = ProgressTracker(self.left_frame)
+        self.progress_tracker = ProgressTracker(self.content_frame)
         self.progress_tracker.pack(fill="x", pady=(0, 15))  # Increased spacing
         
         # Action buttons
@@ -381,7 +403,7 @@ class MainWindow(ctk.CTk):
     
     def _setup_header(self):
         """Set up the application header"""
-        header_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
+        header_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 25))  # Increased spacing
         
         self.title_label = ctk.CTkLabel(
@@ -399,19 +421,21 @@ class MainWindow(ctk.CTk):
             font=("Arial", 14, "bold"), 
             command=self._open_settings,
             fg_color="#4CAF50",
-            hover_color="#45a049"
+            hover_color="#45a049",
+            corner_radius=8,
+            border_width=0
         )
         self.settings_button.pack(side="right")
     
     def _setup_url_input(self):
         """Set up URL input section"""
-        self.url_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
+        self.url_frame = ctk.CTkFrame(self.left_controls, fg_color="transparent")
         self.url_frame.pack(fill="x", pady=(0, 25))  # Increased spacing
         
         url_label = ctk.CTkLabel(self.url_frame, text="YouTube URL:", font=("Arial", 16))  # Larger font
         url_label.pack(anchor="w", pady=(0, 8))  # Increased spacing
         
-        self.url_entry = ctk.CTkEntry(self.url_frame, height=45, font=("Arial", 14))  # Larger height
+        self.url_entry = ctk.CTkEntry(self.url_frame, height=45, font=("Arial", 14), corner_radius=8, border_width=0)  # Larger height
         self.url_entry.pack(fill="x", pady=(0, 12))  # Increased spacing
         
         # Bind URL entry to detect changes and reset layout if empty
@@ -422,13 +446,15 @@ class MainWindow(ctk.CTk):
             text="Load Video", 
             command=self._load_video, 
             height=45, 
-            font=("Arial", 16)  # Larger font
+            font=("Arial", 16),  # Larger font
+            corner_radius=8,
+            border_width=0
         )
         self.load_button.pack(fill="x")
     
     def _setup_buttons(self):
         """Set up action buttons"""
-        self.button_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
+        self.button_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         self.button_frame.pack(fill="x", pady=(10, 0))
         
         self.download_button = ctk.CTkButton(
@@ -438,7 +464,9 @@ class MainWindow(ctk.CTk):
             height=50,  # Increased height
             font=("Arial", 18),  # Larger font
             fg_color=COLORS['primary'], 
-            hover_color=COLORS['primary_hover']
+            hover_color=COLORS['primary_hover'],
+            corner_radius=8,
+            border_width=0
         )
         self.download_button.pack(side="left", padx=(0, 5), fill="x", expand=True)
         
@@ -449,7 +477,9 @@ class MainWindow(ctk.CTk):
             height=50,  # Increased height
             font=("Arial", 18),  # Larger font
             fg_color="#FF9800",  # Orange color for batch download
-            hover_color="#F57C00"
+            hover_color="#F57C00",
+            corner_radius=8,
+            border_width=0
         )
         # Initially hidden
         self.download_selected_button.pack_forget()
@@ -461,7 +491,9 @@ class MainWindow(ctk.CTk):
             height=50,  # Increased height
             font=("Arial", 18),  # Larger font
             fg_color=COLORS['danger'], 
-            hover_color=COLORS['danger_hover']
+            hover_color=COLORS['danger_hover'],
+            corner_radius=8,
+            border_width=0
         )
         # Initially hidden
         self.cancel_button.pack_forget()
@@ -475,7 +507,7 @@ class MainWindow(ctk.CTk):
             display_path = "..." + current_path[-47:]
             
         self.path_label = ctk.CTkLabel(
-            self.left_frame, 
+            self.content_frame, 
             text=f"Download Path: {display_path}", 
             font=("Arial", 14),  # Larger font
             text_color=COLORS['text_disabled']
@@ -496,6 +528,13 @@ class MainWindow(ctk.CTk):
             return
         
         self.current_url = url
+
+        # Clear previous preview and quality list before loading new content
+        if hasattr(self, 'video_preview'):
+            self.video_preview.clear_preview()
+        if hasattr(self, 'quality_selector'):
+            self.quality_selector.clear_options()
+            self.quality_selector.disable()
         
         # Disable load button and show loading state
         self.load_button.configure(text="Loading...", state="disabled")
@@ -532,6 +571,13 @@ class MainWindow(ctk.CTk):
         # Re-enable controls
         self.load_button.configure(text="Load Video", state="normal")
         self.url_entry.configure(state="normal")
+        # Reset quality selector on error
+        if hasattr(self, 'quality_selector'):
+            self.quality_selector.clear_options()
+            self.quality_selector.enable()
+        # Clear preview on error
+        if hasattr(self, 'video_preview'):
+            self.video_preview.clear_preview()
     
     def _load_single_video(self, url):
         """Load a single video"""
@@ -645,29 +691,84 @@ class MainWindow(ctk.CTk):
             thumbnail_image = self.youtube_handler.get_thumbnail_image(
                 video_info['thumbnail_url']
             )
-            
-            # Get quality options
-            quality_options = self.youtube_handler.get_quality_options(video)
-            
-            # Schedule UI updates on main thread
-            self.after(0, lambda: self._update_single_video_ui(video_info, thumbnail_image, quality_options))
+
+            # Show preview immediately on main thread
+            self.after(0, lambda: self._update_single_video_preview(video_info, thumbnail_image))
+
+            # Get quality options with timeout fallback
+            quality_options = self._get_quality_options_with_timeout(video, timeout_seconds=8)
+
+            # Schedule quality options update on main thread
+            self.after(0, lambda: self._update_quality_options_ui(quality_options))
             
         except Exception as e:
             # Schedule error handling on main thread
             self.after(0, lambda: self._handle_load_error(str(e)))
     
-    def _update_single_video_ui(self, video_info, thumbnail_image, quality_options):
-        """Update UI for single video (called on main thread)"""
+    def _get_quality_options_with_timeout(self, video, timeout_seconds=4):
+        """Get quality options but fall back quickly if slow."""
+        quality_options = {}
+
+        def worker():
+            try:
+                quality_options["data"] = self.youtube_handler.get_quality_options(video)
+            except Exception:
+                quality_options["data"] = None
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        thread.join(timeout_seconds)
+
+        if quality_options.get("data"):
+            return quality_options["data"]
+
+        # Fast fallback using stream resolutions (no size calc)
+        return self.youtube_handler.get_quality_options_fast(video)
+
+    def _update_single_video_preview(self, video_info, thumbnail_image):
+        """Update UI for single video preview quickly (called on main thread)."""
+        self._prepare_single_video_ui()
+
+        # Update preview
+        self.video_preview.update_video_info(video_info, thumbnail_image)
+
+        # Show loading state for quality options
+        self.quality_selector.quality_combo.configure(values=["Loading..."])
+        self.quality_selector.quality_combo.set("Loading...")
+        self.quality_selector.disable()
+
+        # Re-enable controls
+        self.load_button.configure(text="Load Video", state="normal")
+        self.url_entry.configure(state="normal")
+
+    def _update_quality_options_ui(self, quality_options):
+        """Update quality selector when options are ready."""
+        if not quality_options:
+            quality_options = [
+                "1080p - Adaptive (Full HD)",
+                "720p - Adaptive (HD)",
+                "480p - Adaptive (SD)",
+                "360p - Adaptive",
+            ]
+        self.quality_selector.set_quality_options(quality_options)
+        self.quality_selector.enable()
+
+    def _prepare_single_video_ui(self):
+        """Prepare layout and state for single video UI."""
         # Switch to single video layout (full width main panel)
         self._show_single_video_layout()
-        
+
         # Hide playlist panel and update state
         self.playlist_panel.hide_playlist()
         self.is_playlist_loaded = False
-        
+
         # Update download buttons
         self._update_download_buttons()
-        
+
+    def _update_single_video_ui(self, video_info, thumbnail_image, quality_options):
+        """Update UI for single video (called on main thread)"""
+        self._prepare_single_video_ui()
+
         # Update UI
         self.video_preview.update_video_info(video_info, thumbnail_image)
         self.quality_selector.set_quality_options(quality_options)

@@ -4,6 +4,7 @@ Video preview component for displaying video information and thumbnail
 
 import customtkinter as ctk
 from customtkinter import CTkImage
+from PIL import ImageOps
 from utils.helpers import format_time
 from utils.network import network_manager
 
@@ -18,6 +19,7 @@ def get_theme_colors():
             'secondary_bg': "#E0E0E0",       # Light secondary background
             'text_primary': "#000000",       # Dark text for light mode
             'text_secondary': "#666666",     # Secondary text for light mode
+            'border': "#C8C8C8",             # Light border
         }
     else:
         return {
@@ -25,6 +27,7 @@ def get_theme_colors():
             'secondary_bg': "#3B3B3B",       # Dark secondary background  
             'text_primary': "#FFFFFF",       # Light text for dark mode
             'text_secondary': "#AAAAAA",     # Secondary text for dark mode
+            'border': "#4A4A4A",             # Dark border
         }
 
 
@@ -33,10 +36,21 @@ class VideoPreview(ctk.CTkFrame):
     
     def __init__(self, parent, **kwargs):
         colors = get_theme_colors()
-        super().__init__(parent, fg_color=colors['frame_bg'], corner_radius=10, **kwargs)
+        self.thumbnail_size = (200, 150)
+        super().__init__(
+            parent,
+            fg_color=colors['frame_bg'],
+            corner_radius=10,
+            border_width=1,
+            border_color=colors['border'],
+            **kwargs
+        )
         
         # Initially hidden
         self.pack_forget()
+
+        # Default pack options (can be overridden by parent layout)
+        self._pack_options = {"fill": "x", "pady": 10}
         
         self._setup_ui()
         self._current_image = None
@@ -57,17 +71,28 @@ class VideoPreview(ctk.CTkFrame):
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.content_frame.pack(fill="both", expand=True, padx=25, pady=(0, 20))  # More padding
         
-        # Thumbnail (much larger size for better visibility)
+        # Thumbnail container with border
+        self.thumbnail_frame = ctk.CTkFrame(
+            self.content_frame,
+            fg_color=colors['secondary_bg'],
+            corner_radius=8,
+            border_width=1,
+            border_color=colors['border'],
+            width=self.thumbnail_size[0],
+            height=self.thumbnail_size[1]
+        )
+        self.thumbnail_frame.pack(side="left", padx=(0, 25))  # More spacing
+        self.thumbnail_frame.pack_propagate(False)
+
+        # Thumbnail label inside bordered frame
         self.thumbnail_label = ctk.CTkLabel(
-            self.content_frame, 
-            text="No video loaded", 
-            width=200, height=150,  # Significantly larger thumbnail
-            fg_color=colors['secondary_bg'],  # Theme-aware background
-            corner_radius=12,
+            self.thumbnail_frame,
+            text="No video loaded",
+            fg_color="transparent",
             font=("Arial", 14),
             text_color=colors['text_primary']  # Theme-aware text color
         )
-        self.thumbnail_label.pack(side="left", padx=(0, 25))  # More spacing
+        self.thumbnail_label.pack(fill="both", expand=True)
         
         # Video info container
         self.info_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
@@ -105,7 +130,7 @@ class VideoPreview(ctk.CTkFrame):
             thumbnail_image (PIL.Image, optional): Thumbnail image
         """
         # Show the preview
-        self.pack(fill="x", pady=10)
+        self.pack(**self._pack_options)
         
         # Update labels
         self.title_label.configure(text=video_info.get('title', 'Unknown Title'))
@@ -118,10 +143,11 @@ class VideoPreview(ctk.CTkFrame):
         # Update thumbnail
         if thumbnail_image:
             try:
+                fitted_image = ImageOps.contain(thumbnail_image, self.thumbnail_size)
                 ctk_img = CTkImage(
-                    light_image=thumbnail_image, 
-                    dark_image=thumbnail_image, 
-                    size=(120, 90)
+                    light_image=fitted_image, 
+                    dark_image=fitted_image, 
+                    size=fitted_image.size
                 )
                 self.thumbnail_label.configure(image=ctk_img, text="")
                 # Keep reference to prevent garbage collection
@@ -145,26 +171,23 @@ class VideoPreview(ctk.CTkFrame):
         colors = get_theme_colors()
         
         # Update main frame background
-        self.configure(fg_color=colors['frame_bg'])
+        self.configure(fg_color=colors['frame_bg'], border_color=colors['border'])
         
         # Update header text color
         if hasattr(self, 'preview_header'):
             self.preview_header.configure(text_color=colors['text_primary'])
         
         # Update thumbnail background
+        if hasattr(self, 'thumbnail_frame'):
+            self.thumbnail_frame.configure(
+                fg_color=colors['secondary_bg'],
+                border_color=colors['border']
+            )
         if hasattr(self, 'thumbnail_label'):
             self.thumbnail_label.configure(
-                fg_color=colors['secondary_bg'],
                 text_color=colors['text_primary']
             )
-        
-        # Update title text color
-        if hasattr(self, 'title_label'):
-            self.title_label.configure(text_color=colors['text_primary'])
-        
-        # Update channel text color
-        if hasattr(self, 'channel_label'):
-            self.channel_label.configure(text_color=colors['text_secondary'])
-        
-        # Force update
-        self.update_idletasks()
+
+    def set_pack_options(self, **options):
+        """Set pack options for preview placement"""
+        self._pack_options = options

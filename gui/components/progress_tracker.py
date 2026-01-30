@@ -46,7 +46,9 @@ class ProgressTracker(ctk.CTkFrame):
         self.progress_bar = ctk.CTkProgressBar(
             self, 
             height=12, 
-            progress_color=COLORS['primary']
+            progress_color=COLORS['primary'],
+            corner_radius=0,
+            border_width=0
         )
         self.progress_bar.pack(fill="x", pady=(5, 10))
         

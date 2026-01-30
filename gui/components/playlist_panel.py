@@ -44,7 +44,7 @@ class PlaylistPanel(ctk.CTkFrame):
         colors = get_theme_colors()
         
         # Apply theme-aware frame color
-        super().__init__(parent, width=width, fg_color=colors['frame_bg'], **kwargs)
+        super().__init__(parent, width=width, fg_color=colors['frame_bg'], corner_radius=0, border_width=0, **kwargs)
         
         # Initially hidden using grid_forget instead of pack_forget
         self.grid_forget()
@@ -63,11 +63,11 @@ class PlaylistPanel(ctk.CTkFrame):
             text="Playlist", 
             font=("Arial", 18, "bold")  # Larger header
         )
-        self.header_label.pack(anchor="w", padx=15, pady=(15, 10))  # Increased padding
+        self.header_label.pack(anchor="w", padx=20, pady=(20, 10))  # Increased padding
         
         # Selection controls
         self.controls_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.controls_frame.pack(fill="x", padx=15, pady=(0, 15))  # Increased padding
+        self.controls_frame.pack(fill="x", padx=20, pady=(0, 15))  # Increased padding
         
         # Top row controls
         top_controls = ctk.CTkFrame(self.controls_frame, fg_color="transparent")
@@ -79,7 +79,9 @@ class PlaylistPanel(ctk.CTkFrame):
             text="Select All",
             variable=self.select_all_var,
             command=self._on_select_all,
-            font=("Arial", 14, "bold")  # Larger font
+            font=("Arial", 14, "bold"),  # Larger font
+            corner_radius=0,
+            border_width=0
         )
         self.select_all_checkbox.pack(side="left")
         
@@ -114,7 +116,9 @@ class PlaylistPanel(ctk.CTkFrame):
             width=150,
             height=28,
             font=("Arial", 11),
-            command=self._on_bulk_quality_change
+            command=self._on_bulk_quality_change,
+            corner_radius=8,
+            border_width=0
         )
         self.bulk_quality_combo.pack(side="left", padx=(10, 0))
         
@@ -125,13 +129,15 @@ class PlaylistPanel(ctk.CTkFrame):
             width=120,
             height=28,
             font=("Arial", 11),
-            command=self._apply_bulk_quality
+            command=self._apply_bulk_quality,
+            corner_radius=8,
+            border_width=0
         )
         self.apply_bulk_button.pack(side="right")
         
         # Scrollable frame for playlist items
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=(0, 15))  # Increased padding
+        self.scroll_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))  # Increased padding
     
     def show_playlist(self, playlist, youtube_handler, progress_callback=None):
         """
@@ -243,7 +249,8 @@ class PlaylistPanel(ctk.CTkFrame):
         item_frame = ctk.CTkFrame(
             self.scroll_frame, 
             fg_color=get_theme_colors()['item_bg'],  # Theme-aware background
-            corner_radius=5, 
+            corner_radius=0,
+            border_width=0,
             height=120  # Increased from 110 to 120 for more space
         )
         item_frame.pack(fill="x", pady=(0, 15))  # Increased padding between items for dropdown space
@@ -260,7 +267,9 @@ class PlaylistPanel(ctk.CTkFrame):
             text="",
             variable=select_var,
             width=20,
-            command=self._on_item_selection_change
+            command=self._on_item_selection_change,
+            corner_radius=0,
+            border_width=0
         )
         select_checkbox.pack(side="left", padx=(0, 8))  # Increased spacing
         
@@ -366,7 +375,9 @@ class PlaylistPanel(ctk.CTkFrame):
             width=250,     # Increased from 150 to 250
             font=("Arial", 11),  # Larger font
             dropdown_hover_color=get_theme_colors()['dropdown_hover'],  # Theme-aware hover
-            button_hover_color=get_theme_colors()['button_hover']       # Better visibility
+            button_hover_color=get_theme_colors()['button_hover'],       # Better visibility
+            corner_radius=8,
+            border_width=0
         )
         quality_combo.pack(side="left", fill="x", expand=True, padx=(0, 10))
         

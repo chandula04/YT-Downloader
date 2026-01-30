@@ -31,7 +31,7 @@ class DownloadManager:
         self.batch_progress_callback = None
         self.current_video_index = -1
         self.total_videos_in_batch = 0
-        self.tv_optimized = user_settings.get("tv_optimized", True)
+        self.tv_optimized = user_settings.get("tv_optimized", False)
 
     def set_tv_optimized(self, enabled):
         """Enable or disable TV-optimized transcoding."""
