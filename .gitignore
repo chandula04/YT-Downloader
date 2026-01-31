@@ -1,4 +1,61 @@
+# FFmpeg executables
 ffmpeg/temp.zip
 ffmpeg/ffplay.exe
 ffmpeg/ffprobe.exe
 ffmpeg/ffmpeg.exe
+
+# Build outputs - DO NOT COMMIT TO GIT
+build/
+dist/
+*.spec
+installer/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+
+# Temporary and log files
+*.tmp
+*.log
+*.backup
+*.bak
+
+# User settings (keep template only)
+user_settings.json
+
+# Test and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+MANIFEST
