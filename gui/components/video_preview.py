@@ -160,11 +160,23 @@ class VideoPreview(ctk.CTkFrame):
     
     def clear_preview(self):
         """Clear the video preview"""
-        self.pack_forget()
+        # Clear the current image reference first
+        self._current_image = None
+        
+        # Clear labels safely
         self.title_label.configure(text="")
         self.channel_label.configure(text="")
-        self.thumbnail_label.configure(image=None, text="No video loaded")
-        self._current_image = None
+        
+        # Clear thumbnail - set text first, then clear image to avoid TclError
+        try:
+            self.thumbnail_label.configure(text="No video loaded")
+            self.thumbnail_label.configure(image="")
+        except Exception:
+            # If there's any error, just set text
+            self.thumbnail_label.configure(text="No video loaded")
+        
+        # Hide the preview
+        self.pack_forget()
     
     def refresh_theme(self):
         """Refresh colors when theme changes"""

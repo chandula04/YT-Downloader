@@ -5,10 +5,12 @@ Main application window for YouTube Downloader
 import customtkinter as ctk
 import threading
 from tkinter import messagebox
-from config.settings import APP_TITLE, WINDOW_GEOMETRY, COLORS
+from config.settings import APP_TITLE, APP_VERSION, WINDOW_GEOMETRY, COLORS
 from config.user_settings import user_settings
 from core import file_manager, YouTubeHandler, DownloadManager
-from gui.components import VideoPreview, PlaylistPanel, ProgressTracker, QualitySelector, SettingsDialog, LoadingPopup
+from gui.components import VideoPreview, PlaylistPanel, ProgressTracker, QualitySelector, SettingsDialog, LoadingPopup, UpdateDialog
+from utils.update_manager import update_download_libraries, check_library_updates
+from utils.app_updater import AppUpdater
 
 
 class MainWindow(ctk.CTk):
@@ -25,7 +27,10 @@ class MainWindow(ctk.CTk):
         self.download_manager = DownloadManager()
         self.download_manager.set_progress_callback(self._on_progress_update)
         self.download_manager.set_batch_progress_callback(self._on_batch_progress_update)
-        self._apply_tv_mode_setting(user_settings.get("tv_optimized", False))
+        
+        # Progress update data (thread-safe storage)
+        self._latest_progress = None
+        self._progress_refresh_timer = None
         
         # Set up responsive window
         self.title(APP_TITLE)
@@ -53,6 +58,15 @@ class MainWindow(ctk.CTk):
         
         # Initialize UI
         self._setup_ui()
+
+        # Optional auto-update for download libraries
+        self._start_auto_update_libraries()
+
+        # Check for library updates (notification badge)
+        self._start_update_check()
+        
+        # Check for app updates (auto-update)
+        self._check_app_updates()
         
         # Start with single video layout (full width main panel)
         self._show_single_video_layout()
@@ -161,7 +175,10 @@ class MainWindow(ctk.CTk):
         """Set up the main user interface"""
         # Main container
         self.main_container = ctk.CTkFrame(self, corner_radius=0, border_width=0)
-        self.main_container.pack(fill="both", expand=True, padx=15, pady=15)
+        self.main_container.pack(fill="both", expand=True, padx=15, pady=(15, 5))
+        
+        # Footer
+        self._setup_footer()
         
         # Create main content area using grid for better control
         self.main_container.grid_columnconfigure(0, weight=1)  # Left panel (always visible)
@@ -340,20 +357,27 @@ class MainWindow(ctk.CTk):
         
         if hasattr(self, 'video_preview'):
             self.video_preview.refresh_theme()
-    
-    def _apply_tv_mode_setting(self, enabled):
-        """Toggle TV optimized merging for the active session."""
-        self.download_manager.set_tv_optimized(bool(enabled))
+
+    def _start_auto_update_libraries(self):
+        """Update download libraries in background if enabled."""
+        if not user_settings.get("auto_update_libs", False):
+            return
+
+        def worker():
+            ok, message = update_download_libraries()
+            status = "✅" if ok else "⚠️"
+            print(f"{status} Auto-update: {message}")
+
+        threading.Thread(target=worker, daemon=True).start()
     
     def _open_settings(self):
         """Open the settings dialog"""
         settings_dialog = SettingsDialog(
             self,
             on_theme_change=self._apply_theme,
-            on_tv_mode_change=self._apply_tv_mode_setting
+            on_settings_saved=self._update_path_display
         )
-        # Update path display after dialog closes
-        self.after(100, self._update_path_display)
+        # No need for after() since callback handles it
     
     def _update_path_display(self):
         """Update the path display label"""
@@ -412,7 +436,7 @@ class MainWindow(ctk.CTk):
             font=("Arial", 26, "bold")  # Larger title
         )
         self.title_label.pack(side="left")
-        
+
         self.settings_button = ctk.CTkButton(
             header_frame, 
             text="⚙️ Settings", 
@@ -426,6 +450,195 @@ class MainWindow(ctk.CTk):
             border_width=0
         )
         self.settings_button.pack(side="right")
+
+        self.update_notif_button = ctk.CTkButton(
+            header_frame,
+            text="🔔",
+            width=42,
+            height=45,
+            font=("Arial", 14, "bold"),
+            corner_radius=8,
+            fg_color="#3B3B3B",
+            hover_color="#444444",
+            command=self._toggle_update_notifications
+        )
+        self.update_notif_button.pack(side="right", padx=(0, 12))
+
+    def _start_update_check(self):
+        """Check if download libraries have updates and show notification."""
+        def worker():
+            updates = check_library_updates(["pytubefix", "yt-dlp"])
+            self.after(0, lambda: self._set_update_notifications(updates))
+
+        threading.Thread(target=worker, daemon=True).start()
+    
+    def _check_app_updates(self):
+        """Check for application updates on startup"""
+        def worker():
+            try:
+                updater = AppUpdater()
+                has_update, new_version, release_notes = updater.check_for_updates()
+                
+                # Store app update info for notification panel
+                self.app_update_info = {
+                    'has_update': has_update,
+                    'version': new_version,
+                    'notes': release_notes,
+                    'updater': updater
+                } if has_update else None
+                
+                # Update notification badge count
+                self.after(0, self._update_notification_badge)
+                
+            except Exception as e:
+                print(f"App update check failed: {e}")
+        
+        threading.Thread(target=worker, daemon=True).start()
+    
+    def _show_update_dialog(self, updater, new_version, release_notes):
+        """Show update available dialog"""
+        try:
+            UpdateDialog(self, APP_VERSION, new_version, release_notes, updater)
+        except Exception as e:
+            print(f"Failed to show update dialog: {e}")
+
+    def _set_update_notifications(self, updates):
+        self.pending_updates = updates or []
+        self._update_notification_badge()
+    
+    def _update_notification_badge(self):
+        """Update notification badge count"""
+        lib_count = len(getattr(self, 'pending_updates', []))
+        app_count = 1 if getattr(self, 'app_update_info', None) else 0
+        total_count = lib_count + app_count
+        
+        if total_count > 0:
+            self.update_notif_button.configure(text=f"🔔 {total_count}")
+        else:
+            self.update_notif_button.configure(text="🔔")
+
+    def _toggle_update_notifications(self):
+        if hasattr(self, "_update_popup") and self._update_popup and self._update_popup.winfo_exists():
+            self._update_popup.destroy()
+            return
+
+        popup = ctk.CTkToplevel(self)
+        popup.title("Updates")
+        popup.geometry("450x350")
+        popup.resizable(False, False)
+        popup.transient(self)
+        popup.grab_set()
+
+        # Position near the notification button
+        try:
+            x = self.update_notif_button.winfo_rootx() - 320
+            y = self.update_notif_button.winfo_rooty() + 50
+            popup.geometry(f"450x350+{x}+{y}")
+        except Exception:
+            pass
+
+        container = ctk.CTkFrame(popup, corner_radius=10)
+        container.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Main title
+        title = ctk.CTkLabel(container, text="Updates", font=("Arial", 18, "bold"))
+        title.pack(anchor="w", padx=15, pady=(15, 10))
+        
+        # App Version Section (Always visible)
+        app_version_frame = ctk.CTkFrame(container, fg_color="#3B3B3B", corner_radius=8)
+        app_version_frame.pack(fill="x", padx=15, pady=(5, 10))
+        
+        ctk.CTkLabel(
+            app_version_frame, 
+            text="🚀 App Version", 
+            font=("Arial", 14, "bold"),
+            text_color="#81C784"
+        ).pack(anchor="w", padx=12, pady=(12, 5))
+        
+        # Check if update is available
+        if getattr(self, 'app_update_info', None):
+            # Update available
+            version_text = f"Current: v{APP_VERSION} → New: v{self.app_update_info['version']}"
+            ctk.CTkLabel(
+                app_version_frame, 
+                text=version_text, 
+                font=("Arial", 12),
+                text_color="#FF9800"
+            ).pack(anchor="w", padx=12, pady=(0, 5))
+            
+            ctk.CTkLabel(
+                app_version_frame, 
+                text="✨ Update available!", 
+                font=("Arial", 11),
+                text_color="#81C784"
+            ).pack(anchor="w", padx=12, pady=(0, 8))
+            
+            ctk.CTkButton(
+                app_version_frame,
+                text="⬇️ Update Now",
+                command=lambda: (popup.destroy(), self._show_update_dialog(
+                    self.app_update_info['updater'],
+                    self.app_update_info['version'],
+                    self.app_update_info['notes']
+                )),
+                height=32,
+                fg_color="#4CAF50",
+                hover_color="#45a049",
+                corner_radius=6
+            ).pack(anchor="e", padx=12, pady=(0, 12))
+        else:
+            # No update available - show current version
+            version_text = f"Current Version: v{APP_VERSION}"
+            ctk.CTkLabel(
+                app_version_frame, 
+                text=version_text, 
+                font=("Arial", 12)
+            ).pack(anchor="w", padx=12, pady=(0, 5))
+            
+            ctk.CTkLabel(
+                app_version_frame, 
+                text="✅ You're up to date!", 
+                font=("Arial", 11),
+                text_color="#81C784"
+            ).pack(anchor="w", padx=12, pady=(0, 12))
+        
+        # Library Updates Section
+        lib_title = ctk.CTkLabel(container, text="Library Updates", font=("Arial", 14, "bold"))
+        lib_title.pack(anchor="w", padx=15, pady=(10, 5))
+
+        if self.pending_updates:
+            lib_frame = ctk.CTkFrame(container, fg_color="#3B3B3B", corner_radius=8)
+            lib_frame.pack(fill="x", padx=15, pady=(0, 10))
+            
+            for item in self.pending_updates:
+                line = f"• {item['name']}: {item['current']} → {item['latest']}"
+                ctk.CTkLabel(lib_frame, text=line, font=("Arial", 12)).pack(anchor="w", padx=12, pady=4)
+            
+            ctk.CTkLabel(
+                lib_frame,
+                text="Open Settings to update libraries.",
+                font=("Arial", 11),
+                text_color="#A0A0A0"
+            ).pack(anchor="w", padx=12, pady=(2, 10))
+        else:
+            ctk.CTkLabel(
+                container, 
+                text="✅ All libraries are up to date.", 
+                font=("Arial", 12),
+                text_color="#81C784"
+            ).pack(anchor="w", padx=15, pady=(0, 10))
+
+        ctk.CTkButton(
+            container,
+            text="Open Settings",
+            command=lambda: (popup.destroy(), self._open_settings()),
+            height=36,
+            corner_radius=8
+        ).pack(anchor="e", padx=15, pady=(5, 15))
+
+        self._update_popup = popup
+
+        self._update_popup = popup
     
     def _setup_url_input(self):
         """Set up URL input section"""
@@ -514,11 +727,53 @@ class MainWindow(ctk.CTk):
         )
         self.path_label.pack(anchor="w", pady=(20, 0))  # More spacing
     
+    def _setup_footer(self):
+        """Set up footer with branding"""
+        footer_frame = ctk.CTkFrame(self, height=40, corner_radius=0, fg_color="transparent")
+        footer_frame.pack(fill="x", side="bottom", padx=15, pady=(0, 10))
+        footer_frame.pack_propagate(False)  # Maintain fixed height
+        
+        # Footer label with gradient-like effect using special characters
+        footer_label = ctk.CTkLabel(
+            footer_frame,
+            text="✨ Created by CMW SOFTWARE ✨",
+            font=("Arial", 16, "bold"),  # Increased from 12 to 16
+            text_color="#4CAF50"  # Green color matching the theme
+        )
+        footer_label.pack(expand=True)
+        
+        # Add subtle animation effect
+        self._animate_footer(footer_label)
+    
     def _set_download_path(self):
         """Handle setting download path"""
         if file_manager.set_download_path():
             path = file_manager.get_download_path()
             self.path_label.configure(text=f"Download Path: {path}")
+    
+    def _animate_footer(self, label):
+        """Animate footer with subtle glow effect"""
+        colors = [
+            "#2E7D32",  # Dark green
+            "#388E3C",  # Darker green
+            "#43A047",  # Medium dark green
+            "#4CAF50",  # Green (base)
+            "#66BB6A",  # Light green
+            "#81C784",  # Lighter green  
+            "#A5D6A7",  # Very light green (brightest)
+            "#81C784",  # Lighter green
+            "#66BB6A",  # Light green
+            "#4CAF50",  # Green (base)
+            "#43A047",  # Medium dark green
+            "#388E3C",  # Darker green
+        ]
+        
+        def cycle_colors(index=0):
+            if label.winfo_exists():
+                label.configure(text_color=colors[index % len(colors)])
+                self.after(250, lambda: cycle_colors((index + 1) % len(colors)))  # Reduced from 500ms to 250ms
+        
+        cycle_colors()
     
     def _load_video(self):
         """Handle loading video or playlist with threading to prevent UI freeze"""
@@ -837,6 +1092,7 @@ class MainWindow(ctk.CTk):
             first_video_info = None
             thumbnail_image = None
             quality_options = []
+            items_data = []
             
             # Process each video with progress updates
             for i, video_url in enumerate(list(playlist.video_urls)):
@@ -872,7 +1128,20 @@ class MainWindow(ctk.CTk):
                         thumbnail_image = self.youtube_handler.get_thumbnail_image(
                             video_info['thumbnail_url']
                         )
-                        quality_options = self.youtube_handler.get_quality_options(video)
+                        quality_options = self._get_quality_options_with_timeout(video, timeout_seconds=4)
+
+                    # Prepare item data for UI (fast quality list)
+                    item_thumb = self.youtube_handler.get_thumbnail_image(video_info['thumbnail_url'])
+                    item_quality = self.youtube_handler.get_quality_options_fast(video)
+                    items_data.append({
+                        "video": video,
+                        "index": i,
+                        "title": video_info.get("title", ""),
+                        "length": video_info.get("length", 0),
+                        "views": getattr(video, "views", None),
+                        "thumbnail": item_thumb,
+                        "quality_options": item_quality
+                    })
                     
                     successful_items += 1
                     
@@ -882,29 +1151,34 @@ class MainWindow(ctk.CTk):
             
             # Complete processing on main thread
             self.after(0, lambda: self._complete_playlist_processing(
-                playlist, successful_items, total_videos, first_video_info, thumbnail_image, quality_options
+                playlist, successful_items, total_videos, first_video_info, thumbnail_image, quality_options, items_data
             ))
             
         except Exception as e:
             self.after(0, lambda: self._handle_playlist_processing_error(str(e)))
     
     def _complete_playlist_processing(self, playlist, successful_items, total_videos, 
-                                    first_video_info, thumbnail_image, quality_options):
+                                    first_video_info, thumbnail_image, quality_options, items_data):
         """Complete playlist processing on main thread"""
         try:
-            # Update loading popup to show completion
-            self.loading_popup.show_success(f"Successfully loaded {successful_items}/{total_videos} videos")
-            
             # Switch to playlist layout
             self._show_playlist_layout()
+
+            # Update header
+            self.playlist_panel.header_label.configure(text=f"Playlist: {playlist.title}")
             
             # Create progress callback for playlist panel
             def progress_callback(current, total, status, title):
                 if hasattr(self, 'loading_popup') and not self.loading_popup.is_cancelled():
                     self.loading_popup.update_progress(current, status, title)
-            
-            # Show playlist panel - this will process and display videos
-            self.playlist_panel.show_playlist(playlist, self.youtube_handler, progress_callback)
+
+            def on_populate_complete():
+                if hasattr(self, 'loading_popup'):
+                    self.loading_popup.show_success(f"Successfully loaded {successful_items}/{total_videos} videos")
+                self.after(1500, self._close_loading_popup)
+
+            # Populate playlist items without blocking UI
+            self.playlist_panel.populate_items(items_data, progress_callback, on_populate_complete)
             self.is_playlist_loaded = True
             
             # Update download buttons
@@ -916,9 +1190,6 @@ class MainWindow(ctk.CTk):
                 
             if quality_options:
                 self.quality_selector.set_quality_options(quality_options)
-            
-            # Auto-close popup after 2 seconds
-            self.after(2000, self._close_loading_popup)
             
             # Re-enable controls
             self.load_button.configure(text="Load Video", state="normal")
@@ -995,6 +1266,11 @@ class MainWindow(ctk.CTk):
         # Update UI for download state
         self._set_download_state(True)
         
+        # Initialize progress display immediately
+        self.progress_tracker.reset()
+        self.progress_tracker.update_progress(0, 0, 0, 0, 0, "Starting download...")
+        self.update_idletasks()  # Force immediate UI refresh
+        
         # Start download
         if self.is_playlist_loaded:
             self.download_manager.download_playlist(
@@ -1035,6 +1311,10 @@ class MainWindow(ctk.CTk):
         self._set_download_state(True, batch_mode=True)
         self.progress_tracker.set_batch_mode(True, 0, len(selected_videos))
         
+        # Initialize progress display immediately
+        self.progress_tracker.update_progress(0, 0, 0, 0, 0, "Starting batch download...")
+        self.update_idletasks()  # Force immediate UI refresh
+        
         # Start batch download
         self.download_manager.download_selected_videos(
             selected_videos,
@@ -1073,9 +1353,36 @@ class MainWindow(ctk.CTk):
             self.quality_selector.enable()
             self.load_button.configure(state="normal")
     
+    def _start_progress_refresh_loop(self):
+        """Start a loop that continuously refreshes the progress display"""
+        def refresh_loop():
+            if self._latest_progress is not None:
+                # Update UI with latest progress data
+                downloaded, total, percentage, speed, elapsed, custom_text = self._latest_progress
+                self.progress_tracker.update_progress(
+                    downloaded, total, percentage, speed, elapsed, custom_text
+                )
+                # Force UI to process the update
+                self.update_idletasks()
+                
+                # Continue loop every 16ms (~60 FPS)
+                self._progress_refresh_timer = self.after(16, refresh_loop)
+            else:
+                # No more progress data, stop loop
+                self._progress_refresh_timer = None
+        
+        refresh_loop()
+    
+    def _stop_progress_refresh_loop(self):
+        """Stop the progress refresh loop"""
+        if self._progress_refresh_timer is not None:
+            self.after_cancel(self._progress_refresh_timer)
+            self._progress_refresh_timer = None
+        self._latest_progress = None
+    
     def _on_batch_progress_update(self, video_index, status, video_title, current, total):
         """
-        Handle batch progress updates
+        Handle batch progress updates (called from background thread)
         
         Args:
             video_index (int): Index of current video
@@ -1084,7 +1391,7 @@ class MainWindow(ctk.CTk):
             current (int): Current video number
             total (int): Total videos in batch
         """
-        # Update UI in main thread
+        # Update directly on main thread
         self.after(0, lambda: self._update_batch_ui(video_index, status, video_title, current, total))
     
     def _update_batch_ui(self, video_index, status, video_title, current, total):
@@ -1102,11 +1409,13 @@ class MainWindow(ctk.CTk):
     def _cancel_download(self):
         """Handle cancel button click"""
         self.download_manager.cancel_download()
-        self.progress_tracker.set_status("Cancelling...")
+        # Show immediate cancellation feedback
+        self.progress_tracker.update_progress(0, 0, 0, 0, 0, "⏹️ Cancelling download...")
+        self.cancel_button.configure(state="disabled", text="Cancelling...")
     
     def _on_progress_update(self, downloaded, total, percentage, speed, elapsed, custom_text=None):
         """
-        Handle progress updates from download manager
+        Handle progress updates from download manager (called from background thread)
         
         Args:
             downloaded (int): Bytes downloaded
@@ -1116,10 +1425,12 @@ class MainWindow(ctk.CTk):
             elapsed (int): Elapsed time in seconds
             custom_text (str, optional): Custom status text
         """
-        # Update UI in main thread
-        self.after(0, lambda: self.progress_tracker.update_progress(
-            downloaded, total, percentage, speed, elapsed, custom_text
-        ))
+        # Store the latest progress data (thread-safe)
+        self._latest_progress = (downloaded, total, percentage, speed, elapsed, custom_text)
+        
+        # Start refresh loop if not already running
+        if self._progress_refresh_timer is None:
+            self._start_progress_refresh_loop()
     
     def _on_download_success(self, message):
         """Handle successful download completion"""
@@ -1137,6 +1448,12 @@ class MainWindow(ctk.CTk):
             message (str): Completion message
             success (bool): Whether download was successful
         """
+        # Stop the progress refresh loop
+        self._stop_progress_refresh_loop()
+        
+        # Reset cancel button state first (in case it was disabled)
+        self.cancel_button.configure(state="normal", text="Cancel")
+        
         # Update UI state
         self._set_download_state(False)
         

@@ -4,7 +4,7 @@ Configuration settings for YouTube Downloader
 
 # Application settings
 APP_TITLE = "YouTube Downloader"
-APP_VERSION = "1.0.0"
+APP_VERSION = "2.0.0"
 WINDOW_GEOMETRY = "1400x800"  # Increased size for better playlist visibility
 
 # UI Theme settings

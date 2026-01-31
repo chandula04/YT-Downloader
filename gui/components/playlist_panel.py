@@ -80,8 +80,8 @@ class PlaylistPanel(ctk.CTkFrame):
             variable=self.select_all_var,
             command=self._on_select_all,
             font=("Arial", 14, "bold"),  # Larger font
-            corner_radius=0,
-            border_width=0
+            corner_radius=4,
+            border_width=2
         )
         self.select_all_checkbox.pack(side="left")
         
@@ -125,7 +125,7 @@ class PlaylistPanel(ctk.CTkFrame):
         # Apply button for bulk quality
         self.apply_bulk_button = ctk.CTkButton(
             bottom_controls,
-            text="Apply to Selected",
+            text="Apply",
             width=120,
             height=28,
             font=("Arial", 11),
@@ -233,6 +233,168 @@ class PlaylistPanel(ctk.CTkFrame):
             progress_callback(total_videos, total_videos, "Completed!", f"Loaded {successful_items}/{total_videos} videos")
         
         self._update_selection_count()
+
+    def populate_items(self, items_data, progress_callback=None, on_complete=None):
+        """Populate playlist UI from preloaded item data without blocking."""
+        self.clear_items()
+        self._pending_items = items_data or []
+        self._populate_index = 0
+        self._populate_total = len(self._pending_items)
+        self._populate_progress_callback = progress_callback
+        self._populate_on_complete = on_complete
+
+        self._populate_next_item()
+
+    def _populate_next_item(self):
+        if self._populate_index >= self._populate_total:
+            if self._populate_on_complete:
+                self._populate_on_complete()
+            self._update_selection_count()
+            return
+
+        item = self._pending_items[self._populate_index]
+        idx = self._populate_index
+
+        if self._populate_progress_callback:
+            self._populate_progress_callback(
+                idx + 1,
+                self._populate_total,
+                "Rendering items...",
+                item.get("title", f"Video {idx+1}")
+            )
+
+        self._add_playlist_item_data(item)
+        self._populate_index += 1
+
+        self.after(1, self._populate_next_item)
+
+    def _add_playlist_item_data(self, item):
+        """Add a single playlist item from preloaded data."""
+        video = item.get("video")
+        index = item.get("index", 0)
+        title = item.get("title", "")
+        length = item.get("length", 0)
+        views = item.get("views", None)
+        thumb_img = item.get("thumbnail")
+        quality_options = item.get("quality_options", [])
+
+        # Main item container
+        item_frame = ctk.CTkFrame(
+            self.scroll_frame, 
+            fg_color=get_theme_colors()['item_bg'],
+            corner_radius=0,
+            border_width=0,
+            height=120
+        )
+        item_frame.pack(fill="x", pady=(0, 15))
+        item_frame.pack_propagate(False)
+
+        top_frame = ctk.CTkFrame(item_frame, fg_color="transparent")
+        top_frame.pack(fill="x", padx=2, pady=(8, 5))
+
+        select_var = ctk.BooleanVar()
+        select_checkbox = ctk.CTkCheckBox(
+            top_frame,
+            text="",
+            variable=select_var,
+            width=20,
+            command=self._on_item_selection_change,
+            corner_radius=4,
+            border_width=2
+        )
+        select_checkbox.pack(side="left", padx=(0, 6))
+
+        # Thumbnail
+        if thumb_img:
+            thumb_ctk = CTkImage(
+                light_image=thumb_img,
+                dark_image=thumb_img,
+                size=(80, 60)
+            )
+            thumb_label = ctk.CTkLabel(top_frame, image=thumb_ctk, text="", width=80, height=60)
+            thumb_label.image = thumb_ctk
+            thumb_label.pack(side="left", padx=(0, 8))
+        else:
+            thumb_placeholder = ctk.CTkLabel(
+                top_frame,
+                text="VIDEO",
+                width=80,
+                height=60,
+                font=("Arial", 10),
+                fg_color=get_theme_colors()['secondary_bg'],
+                text_color=get_theme_colors()['text_primary']
+            )
+            thumb_placeholder.pack(side="left", padx=(0, 8))
+
+        info_frame = ctk.CTkFrame(top_frame, fg_color="transparent", height=50)
+        info_frame.pack(side="left", fill="x", expand=True)
+        info_frame.pack_propagate(False)
+
+        title_text = f"{index + 1}. {safe_filename(title)}"
+        if len(title_text) > 60:
+            title_text = title_text[:57] + "..."
+
+        title_label = ctk.CTkLabel(
+            info_frame,
+            text=title_text,
+            font=("Arial", 12, "bold"),
+            anchor="w",
+            justify="left",
+            height=25
+        )
+        title_label.pack(anchor="w", fill="x", pady=(2, 0))
+
+        duration_str = format_time(length)
+        info_text = f"Duration: {duration_str}"
+        if views:
+            info_text += f" • Views: {views:,}"
+
+        duration_label = ctk.CTkLabel(
+            info_frame,
+            text=info_text,
+            font=("Arial", 10),
+            text_color=get_theme_colors()['text_secondary'],
+            anchor="w",
+            height=20
+        )
+        duration_label.pack(anchor="w", pady=(0, 3))
+
+        bottom_frame = ctk.CTkFrame(item_frame, fg_color="transparent", height=40)
+        bottom_frame.pack(fill="x", padx=2, pady=(8, 8))
+        bottom_frame.pack_propagate(False)
+
+        quality_label = ctk.CTkLabel(
+            bottom_frame,
+            text="Quality:",
+            font=("Arial", 11, "bold"),
+            text_color=get_theme_colors()['text_accent']
+        )
+        quality_label.pack(side="left", padx=(88, 10))
+
+        quality_combo = ctk.CTkComboBox(
+            bottom_frame,
+            values=quality_options,
+            height=32,
+            width=250,
+            font=("Arial", 11),
+            dropdown_hover_color=get_theme_colors()['dropdown_hover'],
+            button_hover_color=get_theme_colors()['button_hover'],
+            corner_radius=8,
+            border_width=0
+        )
+        quality_combo.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        if quality_options:
+            quality_combo.set(quality_options[0])
+
+        self.video_items.append({
+            'frame': item_frame,
+            'video': video,
+            'index': index,
+            'selected': select_var,
+            'quality_combo': quality_combo,
+            'checkbox': select_checkbox
+        })
     
     def _add_playlist_item(self, video, index, session, headers, quality_options):
         """
@@ -258,7 +420,7 @@ class PlaylistPanel(ctk.CTkFrame):
         
         # Top row: Checkbox, thumbnail, and video info
         top_frame = ctk.CTkFrame(item_frame, fg_color="transparent")
-        top_frame.pack(fill="x", padx=8, pady=(8, 5))  # Increased padding
+        top_frame.pack(fill="x", padx=2, pady=(8, 5))  # Reduced left padding
         
         # Selection checkbox
         select_var = ctk.BooleanVar()
@@ -268,10 +430,10 @@ class PlaylistPanel(ctk.CTkFrame):
             variable=select_var,
             width=20,
             command=self._on_item_selection_change,
-            corner_radius=0,
-            border_width=0
+            corner_radius=4,
+            border_width=2
         )
-        select_checkbox.pack(side="left", padx=(0, 8))  # Increased spacing
+        select_checkbox.pack(side="left", padx=(0, 6))
         
         # Thumbnail (larger size)
         try:
@@ -286,35 +448,35 @@ class PlaylistPanel(ctk.CTkFrame):
             
             thumb_data = BytesIO(thumb_response.content)
             thumb_img = Image.open(thumb_data)
-            thumb_img = thumb_img.resize((60, 45), Image.LANCZOS)  # Increased from 40x30 to 60x45
+            thumb_img = thumb_img.resize((80, 60), Image.LANCZOS)
             thumb_ctk = CTkImage(
                 light_image=thumb_img, 
                 dark_image=thumb_img, 
-                size=(60, 45)
+                size=(80, 60)
             )
             
             thumb_label = ctk.CTkLabel(
                 top_frame, 
                 image=thumb_ctk, 
                 text="", 
-                width=60, 
-                height=45
+                width=80, 
+                height=60
             )
             thumb_label.image = thumb_ctk  # Keep reference
-            thumb_label.pack(side="left", padx=(0, 12))  # Increased spacing
+            thumb_label.pack(side="left", padx=(0, 8))
             
         except Exception:
             # Fallback to placeholder if thumbnail fails
             thumb_placeholder = ctk.CTkLabel(
                 top_frame, 
                 text="VIDEO", 
-                width=60,   # Increased size
-                height=45,  # Increased size
+                width=80,
+                height=60,
                 font=("Arial", 10),  # Larger font
                 fg_color=get_theme_colors()['secondary_bg'],  # Theme-aware background
                 text_color=get_theme_colors()['text_primary']  # Theme-aware text
             )
-            thumb_placeholder.pack(side="left", padx=(0, 12))
+            thumb_placeholder.pack(side="left", padx=(0, 8))
         
         # Video information container with fixed height to prevent overlap
         info_frame = ctk.CTkFrame(top_frame, fg_color="transparent", height=50)
@@ -355,7 +517,7 @@ class PlaylistPanel(ctk.CTkFrame):
         
         # Bottom row: Quality selector with proper spacing
         bottom_frame = ctk.CTkFrame(item_frame, fg_color="transparent", height=40)
-        bottom_frame.pack(fill="x", padx=8, pady=(8, 8))  # Increased top padding
+        bottom_frame.pack(fill="x", padx=2, pady=(8, 8))
         bottom_frame.pack_propagate(False)  # Prevent frame from shrinking
         
         # Quality label and selector

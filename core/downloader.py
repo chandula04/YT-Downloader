@@ -22,6 +22,7 @@ class DownloadManager:
         self.current_thread = None
         
         # Progress tracking
+        self.start_time = 0
         self.last_time = 0
         self.last_bytes = 0
         self.current_download_size = 0
@@ -31,11 +32,6 @@ class DownloadManager:
         self.batch_progress_callback = None
         self.current_video_index = -1
         self.total_videos_in_batch = 0
-        self.tv_optimized = user_settings.get("tv_optimized", False)
-
-    def set_tv_optimized(self, enabled):
-        """Enable or disable TV-optimized transcoding."""
-        self.tv_optimized = bool(enabled)
     
     def set_progress_callback(self, callback):
         """
@@ -79,11 +75,31 @@ class DownloadManager:
             bytes_remaining (int): Bytes remaining to download
         """
         if self.stop_flag:
-            raise Exception("Download cancelled")
+            # Raise KeyboardInterrupt to force stop the download stream
+            raise KeyboardInterrupt("Download cancelled by user")
         
         current_time = time.time()
-        bytes_downloaded = self.current_download_size - bytes_remaining
-        percentage = (bytes_downloaded / self.current_download_size) * 100
+
+        # Initialize timing if not set
+        if not self.start_time:
+            self.start_time = current_time
+            self.last_time = current_time
+
+        # Try to resolve total size if unknown
+        if self.current_download_size <= 0:
+            total = getattr(stream, 'filesize', None) or getattr(stream, 'filesize_approx', None)
+            if total and total > 0:
+                self.current_download_size = total
+            elif bytes_remaining is not None:
+                self.current_download_size = bytes_remaining + len(chunk) + self.last_bytes
+
+        # Compute bytes downloaded safely
+        if self.current_download_size > 0 and bytes_remaining is not None:
+            bytes_downloaded = max(self.current_download_size - bytes_remaining, 0)
+            percentage = (bytes_downloaded / self.current_download_size) * 100
+        else:
+            bytes_downloaded = self.last_bytes + len(chunk)
+            percentage = 0
         
         # Calculate download speed
         delta_time = current_time - self.last_time
@@ -95,9 +111,9 @@ class DownloadManager:
         else:
             speed_mbps = 0
         
-        elapsed = int(current_time - self.last_time)
+        elapsed = int(current_time - self.start_time) if self.start_time else 0
         
-        # Call progress callback if set
+        # Call progress callback immediately for real-time updates
         if self.progress_callback:
             self.progress_callback(
                 bytes_downloaded, 
@@ -109,6 +125,13 @@ class DownloadManager:
         
         self.last_time = current_time
         self.last_bytes = bytes_downloaded
+
+    def _reset_progress_tracking(self, total_size):
+        """Reset progress tracking for a new stream download."""
+        self.current_download_size = total_size or 0
+        self.start_time = time.time()
+        self.last_time = self.start_time
+        self.last_bytes = 0
     
     def download_single_video(self, video, quality_str, is_audio, output_path):
         """
@@ -148,15 +171,20 @@ class DownloadManager:
         audio_stream = self.youtube_handler.get_audio_only_stream(video)
         if not audio_stream:
             raise Exception("No audio stream available")
-        
-        self.current_download_size = audio_stream.filesize
+
+        total_size = getattr(audio_stream, 'filesize', None) or getattr(audio_stream, 'filesize_approx', None) or 0
+        self._reset_progress_tracking(total_size)
         video.register_on_progress_callback(self.progress_tracker)
         
         # Download audio directly as mp3
         output_filename = f"{safe_filename(video.title)}.mp3"
         full_output_path = os.path.join(output_path, output_filename)
         
-        audio_stream.download(output_path=output_path, filename=output_filename)
+        try:
+            audio_stream.download(output_path=output_path, filename=output_filename)
+        except KeyboardInterrupt:
+            # User cancelled - propagate the cancellation
+            raise
     
     def _download_adaptive(self, video, resolution, output_path):
         """Download adaptive streams and merge with FFmpeg"""
@@ -170,26 +198,41 @@ class DownloadManager:
             raise Exception("No suitable streams available")
         
         # Download video
-        self.current_download_size = video_stream.filesize
+        total_size = getattr(video_stream, 'filesize', None) or getattr(video_stream, 'filesize_approx', None) or 0
+        self._reset_progress_tracking(total_size)
         video.register_on_progress_callback(self.progress_tracker)
-        video_path = video_stream.download(output_path=output_path, filename="video_temp.mp4")
         
-        # Check if cancelled during download
+        try:
+            video_path = video_stream.download(output_path=output_path, filename="video_temp.mp4")
+        except KeyboardInterrupt:
+            # User cancelled during video download - clean up and propagate
+            self.ffmpeg_handler.cleanup_default_temp_files(output_path)
+            raise
+        
+        # Check if cancelled between downloads
         if self.stop_flag:
             self.ffmpeg_handler.cleanup_temp_files(video_path)
             self.ffmpeg_handler.cleanup_default_temp_files(output_path)
-            raise Exception("Download cancelled")
+            raise KeyboardInterrupt("Download cancelled")
         
         # Download audio
-        self.current_download_size = audio_stream.filesize
+        total_size = getattr(audio_stream, 'filesize', None) or getattr(audio_stream, 'filesize_approx', None) or 0
+        self._reset_progress_tracking(total_size)
         video.register_on_progress_callback(self.progress_tracker)
-        audio_path = audio_stream.download(output_path=output_path, filename="audio_temp.mp4")
         
-        # Check if cancelled during download
+        try:
+            audio_path = audio_stream.download(output_path=output_path, filename="audio_temp.mp4")
+        except KeyboardInterrupt:
+            # User cancelled during audio download - clean up and propagate
+            self.ffmpeg_handler.cleanup_temp_files(video_path)
+            self.ffmpeg_handler.cleanup_default_temp_files(output_path)
+            raise
+        
+        # Check if cancelled before merging
         if self.stop_flag:
             self.ffmpeg_handler.cleanup_temp_files(video_path, audio_path)
             self.ffmpeg_handler.cleanup_default_temp_files(output_path)
-            raise Exception("Download cancelled")
+            raise KeyboardInterrupt("Download cancelled")
         
         # Merge with FFmpeg with progress tracking
         output_filename = f"{safe_filename(video.title)}.mp4"
@@ -206,8 +249,7 @@ class DownloadManager:
                 video_path,
                 audio_path,
                 final_output_path,
-                ffmpeg_progress,
-                tv_optimized=self.tv_optimized
+                ffmpeg_progress
             )
         except OSError as e:
             # Handle Windows compatibility errors specifically
@@ -257,7 +299,8 @@ class DownloadManager:
         audio_path = None
         try:
             # Download video stream
-            self.current_download_size = video_stream.filesize if hasattr(video_stream, 'filesize') else 0
+            total_size = getattr(video_stream, 'filesize', None) or getattr(video_stream, 'filesize_approx', None) or 0
+            self._reset_progress_tracking(total_size)
             video.register_on_progress_callback(self.progress_tracker)
             video_path = video_stream.download(output_path=output_path, filename="video_temp.mp4")
             
@@ -283,8 +326,7 @@ class DownloadManager:
                 self.ffmpeg_handler.merge_video_audio(
                     video_path,
                     audio_path,
-                    output_file,
-                    tv_optimized=self.tv_optimized
+                    output_file
                 )
                 print(f"✅ Adaptive video merged: {output_file}")
             else:
@@ -344,7 +386,7 @@ class DownloadManager:
         try:
             for i, video_info in enumerate(selected_videos):
                 if self.stop_flag:
-                    raise Exception("Download cancelled")
+                    raise KeyboardInterrupt("Download cancelled")
                 
                 self.current_video_index = video_info['index']
                 video = video_info['video']
@@ -406,7 +448,12 @@ class DownloadManager:
             # Final success callback
             if success_callback:
                 success_callback(f"Batch download completed! {completed_count}/{self.total_videos_in_batch} videos downloaded successfully.")
-                
+        
+        except KeyboardInterrupt:
+            # Clean up temp files from cancelled batch download
+            self.ffmpeg_handler.cleanup_default_temp_files(file_manager.get_download_path())
+            if error_callback:
+                error_callback("Download cancelled")
         except Exception as e:
             if error_callback:
                 error_callback(str(e))
@@ -467,7 +514,7 @@ class DownloadManager:
             
             for i, video in enumerate(playlist.videos):
                 if self.stop_flag:
-                    raise Exception("Download cancelled")
+                    raise KeyboardInterrupt("Download cancelled")
                 
                 # Update progress info
                 if self.progress_callback:
@@ -477,7 +524,12 @@ class DownloadManager:
             
             if success_callback:
                 success_callback("Playlist download completed!")
-                
+        
+        except KeyboardInterrupt:
+            # Clean up temp files from cancelled playlist download
+            self.ffmpeg_handler.cleanup_default_temp_files(file_manager.get_download_path())
+            if error_callback:
+                error_callback("Download cancelled")
         except Exception as e:
             if error_callback:
                 error_callback(str(e))
@@ -491,8 +543,19 @@ class DownloadManager:
             if success_callback:
                 success_callback("Download completed!")
                 
+        except KeyboardInterrupt:
+            # User cancelled the download - clean up all temp files
+            self.ffmpeg_handler.cleanup_default_temp_files(file_manager.get_download_path())
+            if error_callback:
+                error_callback("Download cancelled")
+            return
         except Exception as e:
             error_message = str(e)
+
+            if self.stop_flag or "cancelled" in error_message.lower():
+                if error_callback:
+                    error_callback("Download cancelled")
+                return
             
             # Handle specific HTTP 403 Forbidden error with retry
             if "403" in error_message or "Forbidden" in error_message:
@@ -504,6 +567,13 @@ class DownloadManager:
                     
                     if success_callback:
                         success_callback("Download completed!")
+                    return
+                
+                except KeyboardInterrupt:
+                    # User cancelled during retry - clean up
+                    self.ffmpeg_handler.cleanup_default_temp_files(file_manager.get_download_path())
+                    if error_callback:
+                        error_callback("Download cancelled")
                     return
                     
                 except Exception as retry_error:
@@ -519,6 +589,7 @@ class DownloadManager:
                             is_audio,
                             self.progress_callback,
                             ffmpeg_path,
+                            cancel_callback=lambda: self.stop_flag
                         )
                         if ok:
                             if success_callback:
@@ -526,6 +597,12 @@ class DownloadManager:
                             return
                         else:
                             raise Exception("yt-dlp fallback failed")
+                    except KeyboardInterrupt:
+                        # User cancelled during yt-dlp fallback - clean up
+                        self.ffmpeg_handler.cleanup_default_temp_files(file_manager.get_download_path())
+                        if error_callback:
+                            error_callback("Download cancelled")
+                        return
                     except Exception as yerr:
                         print(f"❌ yt-dlp fallback failed: {yerr}")
                         enhanced_error = (

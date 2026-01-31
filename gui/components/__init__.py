@@ -8,3 +8,4 @@ from .progress_tracker import ProgressTracker
 from .quality_selector import QualitySelector
 from .settings_dialog import SettingsDialog
 from .loading_popup import LoadingPopup
+from .update_dialog import UpdateDialog

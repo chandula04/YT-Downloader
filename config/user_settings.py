@@ -26,7 +26,7 @@ class UserSettings:
             "window_maximized": False,
             "auto_create_download_folder": True,
             "remember_window_state": True,
-            "tv_optimized": False
+            "auto_update_libraries": False
         }
         
         # Load or create settings

@@ -188,7 +188,18 @@ class FFmpegHandler:
         
         print("⚠️ Falling back to system PATH")
         # Fallback to system PATH
-        return "ffmpeg"
+        ffmpeg_cmd = "ffmpeg"
+        
+        # Test if system FFmpeg works
+        try:
+            subprocess.run([ffmpeg_cmd, '-version'], 
+                         capture_output=True, check=True, timeout=5,
+                         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            print("✅ System FFmpeg found in PATH")
+            return ffmpeg_cmd
+        except Exception:
+            print("❌ No working FFmpeg found anywhere")
+            return None
     
     @staticmethod
     def is_available():
@@ -249,9 +260,9 @@ class FFmpegHandler:
         return False
     
     @staticmethod
-    def merge_video_audio(video_path, audio_path, output_path, progress_callback=None, tv_optimized=True):
+    def merge_video_audio(video_path, audio_path, output_path, progress_callback=None):
         """
-        Merge video and audio files using FFmpeg with progress tracking
+        Merge video and audio files using FFmpeg with direct stream copy (no re-encoding)
         
         Args:
             video_path (str): Path to video file
@@ -259,7 +270,6 @@ class FFmpegHandler:
             output_path (str): Path for output file
             progress_callback (callable): Optional callback for progress updates
                                         Signature: callback(percentage, stage)
-            tv_optimized (bool): Whether to re-encode for TV compatibility
             
         Raises:
             FileNotFoundError: If FFmpeg is not installed
@@ -267,61 +277,42 @@ class FFmpegHandler:
             subprocess.TimeoutExpired: If FFmpeg takes too long
         """
         ffmpeg_path = FFmpegHandler.get_ffmpeg_path()
-        ffprobe_path = FFmpegHandler._get_ffprobe_path(ffmpeg_path)
-        stream_info = FFmpegHandler._probe_video_stream(video_path, ffprobe_path)
-        requested_tv_mode = bool(tv_optimized)
-        auto_tv_required = not FFmpegHandler._is_stream_tv_ready(stream_info)
-        force_tv_profile = requested_tv_mode or auto_tv_required
-        attempt = 0
-        last_error = None
         
-        while True:
-            attempt += 1
-            cmd = FFmpegHandler._build_merge_command(
-                ffmpeg_path,
-                video_path,
-                audio_path,
-                output_path,
-                force_tv_profile
+        if not ffmpeg_path:
+            raise FileNotFoundError(
+                "FFmpeg is required but not found. Please install FFmpeg and add it to your PATH."
             )
-            stage_label = "TV optimized merge" if force_tv_profile else "Direct merge"
-            try:
-                FFmpegHandler._run_ffmpeg_command(cmd, progress_callback, stage_label)
-            except FileNotFoundError:
-                raise FileNotFoundError("FFmpeg is not installed or not in PATH")
-            except subprocess.TimeoutExpired as timeout_error:
-                raise timeout_error
-            except subprocess.CalledProcessError as called_error:
-                raise subprocess.CalledProcessError(
-                    called_error.returncode,
-                    called_error.cmd,
-                    f"FFmpeg failed to merge the files: {called_error.stderr or called_error.output}"
-                )
-            
-            # Validate codec if ffprobe is available
-            stream_after = FFmpegHandler._probe_video_stream(output_path, ffprobe_path)
-            codec_after = (stream_after.get('codec_name') or '').lower() if stream_after else ''
-            if not stream_after or codec_after == 'h264':
-                break  # success
-            
-            last_error = codec_after or 'unknown'
-            if force_tv_profile:
-                raise Exception(
-                    "FFmpeg completed but output codec is still not H.264 (detected: "
-                    f"{last_error}). Please delete the 'ffmpeg' folder and rerun setup."
-                )
-            # Retry with TV profile enabled
-            force_tv_profile = True
-            FFmpegHandler._safe_delete(Path(output_path))
-            if progress_callback:
-                progress_callback(0, "Retrying merge with TV profile...")
-            if attempt >= 2:
-                raise Exception(
-                    "Unable to force H.264 output after retry."
-                )
         
-        if progress_callback:
-            progress_callback(100, "FFmpeg merge completed!")
+        # Build command for direct stream copy (fast, no quality loss)
+        cmd = [
+            str(ffmpeg_path),
+            '-hide_banner',
+            '-i', str(video_path),
+            '-i', str(audio_path),
+            '-map', '0:v:0',
+            '-map', '1:a:0',
+            '-c:v', 'copy',  # Copy video stream without re-encoding
+            '-c:a', 'copy',  # Copy audio stream without re-encoding
+            '-movflags', FFMPEG_MOVFLAGS,
+            '-y', str(output_path)
+        ]
+        
+        try:
+            FFmpegHandler._run_ffmpeg_command(cmd, progress_callback, "Merging")
+            if progress_callback:
+                progress_callback(100, "Merge completed!")
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                "FFmpeg is required but not found. Please install FFmpeg and add it to your PATH."
+            )
+        except subprocess.TimeoutExpired as timeout_error:
+            raise timeout_error
+        except subprocess.CalledProcessError as called_error:
+            raise subprocess.CalledProcessError(
+                called_error.returncode,
+                called_error.cmd,
+                f"FFmpeg failed to merge the files: {called_error.stderr or called_error.output}"
+            )
 
     @staticmethod
     def _build_merge_command(ffmpeg_path, video_path, audio_path, output_path, tv_profile_enabled):
@@ -409,19 +400,46 @@ class FFmpegHandler:
 
     @staticmethod
     def cleanup_default_temp_files(directory):
-        """Remove default temp files (video_temp/audio_temp) inside directory."""
+        """Remove default temp files (video_temp/audio_temp) and yt-dlp partial downloads inside directory."""
         if not directory:
             return
         dir_path = Path(directory)
         if not dir_path.exists():
             return
-        for pattern in ("video_temp*", "audio_temp*"):
-            for temp_file in dir_path.glob(pattern):
-                try:
+        # Patterns for temp files:
+        # - video_temp*, audio_temp* (our adaptive download temps)
+        # - *.part (yt-dlp partial downloads)
+        # - *.f*.mp4, *.f*.webm, *.f*.m4a (yt-dlp fragment files)
+        # - *.ytdl (yt-dlp download info files)
+        patterns = [
+            "video_temp*",
+            "audio_temp*",
+            "*.part",
+            "*.f[0-9]*.mp4",
+            "*.f[0-9]*.webm",
+            "*.f[0-9]*.m4a",
+            "*.ytdl"
+        ]
+        for pattern in patterns:
+            # Use both glob and manual matching for fragment patterns
+            if "f[0-9]" in pattern:
+                # Manual search for fragment files like .f398.mp4
+                for temp_file in dir_path.iterdir():
                     if temp_file.is_file():
-                        temp_file.unlink()
-                except OSError:
-                    pass
+                        import re
+                        # Match files like "filename.f123.mp4" or "filename.f456.mp4.part"
+                        if re.search(r'\.f\d+\.(mp4|webm|m4a)', temp_file.name):
+                            try:
+                                temp_file.unlink()
+                            except OSError:
+                                pass
+            else:
+                for temp_file in dir_path.glob(pattern):
+                    try:
+                        if temp_file.is_file():
+                            temp_file.unlink()
+                    except OSError:
+                        pass
 
     @staticmethod
     def _run_ffmpeg_command(cmd, progress_callback, stage_label):

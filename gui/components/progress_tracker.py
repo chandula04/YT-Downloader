@@ -119,13 +119,24 @@ class ProgressTracker(ctk.CTkFrame):
             custom_text (str, optional): Custom text to display instead of default
         """
         # Update progress bar
-        self.progress_bar.set(percentage / 100)
+        self.progress_bar.set(max(0, min(1, percentage / 100)))
         
         # Update info text
         if custom_text:
             self.info_label.configure(text=custom_text)
         elif total > 0:
-            base_info = f"Elapsed: {format_time(elapsed)} Size: {format_size(total)} Speed: {speed:.1f} MB/s"
+            eta_seconds = 0
+            if speed > 0:
+                remaining_bytes = max(total - downloaded, 0)
+                eta_seconds = int(remaining_bytes / (speed * 1024 * 1024))
+
+            base_info = (
+                f"Downloaded: {format_size(downloaded)} / {format_size(total)} "
+                f"• Speed: {speed:.1f} MB/s • Elapsed: {format_time(elapsed)}"
+            )
+
+            if eta_seconds > 0:
+                base_info += f" • ETA: {format_time(eta_seconds)}"
             
             # Add batch info if in batch mode
             if self.is_batch_mode and self.batch_info["current"] > 0:
@@ -134,7 +145,11 @@ class ProgressTracker(ctk.CTkFrame):
             else:
                 self.info_label.configure(text=base_info)
         else:
-            self.info_label.configure(text="Preparing download...")
+            base_info = (
+                f"Downloaded: {format_size(downloaded)} "
+                f"• Speed: {speed:.1f} MB/s • Elapsed: {format_time(elapsed)}"
+            )
+            self.info_label.configure(text=base_info)
     
     def reset(self):
         """Reset progress to initial state"""
