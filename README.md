@@ -619,7 +619,7 @@ The app is safe and open-source. You can review the code anytime!
 
 Still having issues? Get help here:
 
-- 📧 **Email**: chandula2004@gmail.com
+- 📧 **Email**: chandulawijesekara4@gmail.com
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/chandula04/YT-Downloader/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/chandula04/YT-Downloader/discussions)
 - 📚 **Documentation**: Check this README thoroughly
@@ -709,7 +709,7 @@ Contributions are welcome! Here's how you can help:
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/YT-Downloader.git
+git clone https://github.com/chandula04/YT-Downloader.git
 cd YT-Downloader
 
 # Add upstream remote
@@ -741,7 +741,7 @@ This project is licensed under the **MIT License** - see below for details:
 ```
 MIT License
 
-Copyright (c) 2024-2026 Chandula Janith (CMW SOFTWARE)
+Copyright (c) 2024-2026 Chandula Wijesekara (CMW SOFTWARE)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -768,11 +768,11 @@ SOFTWARE.
 
 <div align="center">
 
-### **Chandula Janith**
+### **Chandula Wijesekara**
 *Founder & Lead Developer at CMW SOFTWARE*
 
 [![GitHub](https://img.shields.io/badge/GitHub-chandula04-181717?style=for-the-badge&logo=github)](https://github.com/chandula04)
-[![Email](https://img.shields.io/badge/Email-chandula2004@gmail.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:chandula2004@gmail.com)
+[![Email](https://img.shields.io/badge/Email-chandulawijesekara4@gmail.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:chandulawijesekara4@gmail.com)
 
 📍 **Based in Sri Lanka** 🇱🇰
 
