@@ -140,14 +140,21 @@ class AppUpdater:
             print("⬇️ Starting download...")
             
             with open(temp_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
+                # Larger chunk size for faster downloads (256KB instead of 8KB)
+                for chunk in response.iter_content(chunk_size=262144):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
                         
                         if progress_callback and total_size > 0:
                             percentage = (downloaded / total_size) * 100
-                            progress_callback(downloaded, total_size, percentage)
+                            # Check if callback returns False (cancel signal)
+                            if progress_callback(downloaded, total_size, percentage) == False:
+                                print("🛑 Download cancelled by user")
+                                f.close()
+                                if os.path.exists(temp_path):
+                                    os.remove(temp_path)
+                                return None
             
             print(f"✅ Update downloaded to: {temp_path}")
             print(f"📊 File size: {os.path.getsize(temp_path) / (1024*1024):.1f} MB")

@@ -26,6 +26,11 @@ class SettingsDialog(ctk.CTkToplevel):
         # Detect if running in portable mode (frozen exe)
         self.is_portable = getattr(sys, 'frozen', False)
         
+        # Download control flags
+        self.download_cancelled = False
+        self.download_paused = False
+        self.download_thread = None
+        
         # Window setup
         self.title("Settings")
         self.geometry("760x700")  # Wider and taller for clarity
@@ -35,6 +40,9 @@ class SettingsDialog(ctk.CTkToplevel):
         # Center the dialog
         self.transient(parent)
         self.grab_set()
+        
+        # Handle window close event
+        self.protocol("WM_DELETE_WINDOW", self._on_closing)
         
         # Center window on parent
         self._center_window()
@@ -131,14 +139,40 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         section_label.pack(anchor="w", padx=20, pady=(20, 10))
         
-        # Current version display
-        version_label = ctk.CTkLabel(
-            app_update_frame,
+        # Version info row (current and new version side by side)
+        version_row = ctk.CTkFrame(app_update_frame, fg_color="transparent")
+        version_row.pack(fill="x", padx=20, pady=(0, 10))
+        
+        # Current version
+        current_version_label = ctk.CTkLabel(
+            version_row,
             text=f"Current Version: {APP_VERSION}",
             font=("Arial", 14),
             text_color="white"
         )
-        version_label.pack(anchor="w", padx=20, pady=(0, 10))
+        current_version_label.pack(side="left")
+        
+        # New version (hidden initially) - marked as 1 in image
+        self.new_version_label = ctk.CTkLabel(
+            version_row,
+            text="",
+            font=("Arial", 14, "bold"),
+            text_color="#81C784"
+        )
+        
+        # Update description box (scrollable) - marked as 2 in image
+        self.description_frame = ctk.CTkFrame(app_update_frame, fg_color="#1E1E1E", border_width=1, border_color="#4CAF50")
+        
+        self.description_text = ctk.CTkTextbox(
+            self.description_frame,
+            height=100,
+            font=("Arial", 12),
+            fg_color="#1E1E1E",
+            text_color="#A0A0A0",
+            wrap="word"
+        )
+        self.description_text.pack(fill="both", expand=True, padx=5, pady=5)
+        self.description_text.configure(state="disabled")
         
         # Status label
         self.app_update_status = ctk.CTkLabel(
@@ -178,6 +212,31 @@ class SettingsDialog(ctk.CTkToplevel):
             command=self._start_download
         )
         # Initially hidden
+        
+        # Download control buttons (pause/resume/cancel)
+        self.pause_button = ctk.CTkButton(
+            button_row,
+            text="⏸️ Pause",
+            height=40,
+            width=120,
+            font=("Arial", 14, "bold"),
+            corner_radius=8,
+            fg_color="#2196F3",
+            hover_color="#1976D2",
+            command=self._toggle_pause
+        )
+        
+        self.cancel_button = ctk.CTkButton(
+            button_row,
+            text="❌ Cancel",
+            height=40,
+            width=120,
+            font=("Arial", 14, "bold"),
+            corner_radius=8,
+            fg_color="#F44336",
+            hover_color="#D32F2F",
+            command=self._cancel_download
+        )
         
         # Progress bar (hidden initially)
         self.update_progress_frame = ctk.CTkFrame(app_update_frame, fg_color="transparent")
@@ -232,12 +291,28 @@ class SettingsDialog(ctk.CTkToplevel):
         if has_update:
             self.app_updater = updater
             self.app_update_info = {'version': new_version, 'notes': release_notes}
+            
+            # Show new version next to current version (marked as 1)
+            self.new_version_label.configure(text=f"  →  New Version: {new_version}")
+            self.new_version_label.pack(side="left", padx=(20, 0))
+            
+            # Show update description in scrollable box (marked as 2)
+            self.description_frame.pack(fill="x", padx=20, pady=(0, 10))
+            self.description_text.configure(state="normal")
+            self.description_text.delete("1.0", "end")
+            self.description_text.insert("1.0", release_notes or "No description available.")
+            self.description_text.configure(state="disabled")
+            
             self.app_update_status.configure(
                 text=f"✨ New version available: v{new_version}",
                 text_color="#81C784"
             )
             self.install_app_update_button.pack(side="left", padx=(10, 0))
         else:
+            # Hide new version and description if up to date
+            self.new_version_label.pack_forget()
+            self.description_frame.pack_forget()
+            
             self.app_update_status.configure(
                 text=f"✅ You're up to date! (v{APP_VERSION})",
                 text_color="#81C784"
@@ -266,15 +341,24 @@ class SettingsDialog(ctk.CTkToplevel):
             )
             return
         
-        # Hide buttons, show progress
+        # Reset flags
+        self.download_cancelled = False
+        self.download_paused = False
+        
+        # Hide buttons, show progress and controls
         self.check_app_update_button.pack_forget()
         self.install_app_update_button.pack_forget()
-        self.update_progress_frame.pack(fill="x", padx=20, pady=(0, 20))
+        self.update_progress_frame.pack(fill="x", padx=20, pady=(0, 10))
+        
+        # Show pause/cancel buttons
+        self.pause_button.pack(side="left", padx=(0, 10))
+        self.cancel_button.pack(side="left")
         
         self.app_update_status.configure(text="Downloading update...", text_color="#FF9800")
         
         # Start download in thread
-        threading.Thread(target=self._download_update, daemon=True).start()
+        self.download_thread = threading.Thread(target=self._download_update, daemon=True)
+        self.download_thread.start()
     
     def _download_update(self):
         """Download update in background thread"""
@@ -282,30 +366,71 @@ class SettingsDialog(ctk.CTkToplevel):
             print("📥 Starting download thread...")
             
             def progress_callback(downloaded, total, percentage):
-                self.after(0, lambda d=downloaded, t=total, p=percentage: 
-                          self._update_download_progress(d, t, p))
+                # Check if download is cancelled
+                if self.download_cancelled:
+                    return False  # Signal to stop download
+                
+                # Wait if paused
+                while self.download_paused and not self.download_cancelled:
+                    import time
+                    time.sleep(0.1)
+                
+                # Update UI only if widget still exists
+                try:
+                    if self.winfo_exists():
+                        self.after(0, lambda d=downloaded, t=total, p=percentage: 
+                                  self._update_download_progress(d, t, p))
+                except:
+                    return False  # Stop if dialog destroyed
+                
+                return True  # Continue download
             
             downloaded_file = self.app_updater.download_update(progress_callback)
             
+            # Check if download was cancelled
+            if self.download_cancelled:
+                print("⏹️ Download was cancelled")
+                return
+            
             if downloaded_file:
                 self.downloaded_file = downloaded_file
-                self.after(0, self._download_complete)
+                try:
+                    if self.winfo_exists():
+                        self.after(0, self._download_complete)
+                except:
+                    pass
             else:
-                self.after(0, self._download_failed)
+                try:
+                    if self.winfo_exists():
+                        self.after(0, self._download_failed)
+                except:
+                    pass
         except Exception as e:
             print(f"❌ Download exception: {e}")
             import traceback
             traceback.print_exc()
-            self.after(0, lambda: self._download_failed(str(e)))
+            try:
+                if self.winfo_exists():
+                    self.after(0, lambda: self._download_failed(str(e)))
+            except:
+                pass
     
     def _update_download_progress(self, downloaded, total, percentage):
         """Update progress bar in Settings"""
-        self.update_progress_bar.set(percentage / 100)
-        size_mb = downloaded / (1024 * 1024)
-        total_mb = total / (1024 * 1024)
-        self.update_progress_label.configure(
-            text=f"Downloading: {size_mb:.1f} MB / {total_mb:.1f} MB ({percentage:.1f}%)"
-        )
+        try:
+            if not self.winfo_exists():
+                return
+            
+            self.update_progress_bar.set(percentage / 100)
+            size_mb = downloaded / (1024 * 1024)
+            total_mb = total / (1024 * 1024)
+            
+            status = "⏸️ Paused" if self.download_paused else "Downloading"
+            self.update_progress_label.configure(
+                text=f"{status}: {size_mb:.1f} MB / {total_mb:.1f} MB ({percentage:.1f}%)"
+            )
+        except Exception as e:
+            print(f"⚠️ Progress update error: {e}")
     
     def _download_complete(self):
         """Handle download completion"""
@@ -313,14 +438,18 @@ class SettingsDialog(ctk.CTkToplevel):
         self.update_progress_label.configure(text="✨ Update downloaded successfully!")
         self.update_progress_bar.set(1.0)
         
-        # Hide progress, show restart button
+        # Hide progress and control buttons, show restart button
         self.update_progress_frame.pack_forget()
+        self.pause_button.pack_forget()
+        self.cancel_button.pack_forget()
         self.restart_button.pack(fill="x", padx=20, pady=(10, 20))
     
     def _download_failed(self, error=None):
         """Handle download failure"""
-        # Show buttons again, hide progress
+        # Show buttons again, hide progress and controls
         self.update_progress_frame.pack_forget()
+        self.pause_button.pack_forget()
+        self.cancel_button.pack_forget()
         self.check_app_update_button.pack(side="left")
         self.install_app_update_button.pack(side="left", padx=(10, 0))
         
@@ -330,11 +459,12 @@ class SettingsDialog(ctk.CTkToplevel):
             text_color="#F44336"
         )
         
-        messagebox.showerror(
-            "Download Failed",
-            f"{error_msg}\n\nPlease check your internet connection and try again.",
-            parent=self
-        )
+        if not self.download_cancelled:  # Don't show error if user cancelled
+            messagebox.showerror(
+                "Download Failed",
+                f"{error_msg}\n\nPlease check your internet connection and try again.",
+                parent=self
+            )
     
     def _restart_app(self):
         """Install update and restart app"""
@@ -356,6 +486,43 @@ class SettingsDialog(ctk.CTkToplevel):
                 parent=self
             )
             self.restart_button.configure(state="normal", text="🔄 Restart Now")
+    
+    def _toggle_pause(self):
+        """Toggle pause/resume download"""
+        self.download_paused = not self.download_paused
+        if self.download_paused:
+            self.pause_button.configure(text="▶️ Resume", fg_color="#4CAF50", hover_color="#45a049")
+            self.app_update_status.configure(text="⏸️ Download paused", text_color="#FF9800")
+        else:
+            self.pause_button.configure(text="⏸️ Pause", fg_color="#2196F3", hover_color="#1976D2")
+            self.app_update_status.configure(text="Downloading update...", text_color="#FF9800")
+    
+    def _cancel_download(self):
+        """Cancel download"""
+        self.download_cancelled = True
+        self.download_paused = False
+        
+        # Reset UI
+        self.update_progress_frame.pack_forget()
+        self.pause_button.pack_forget()
+        self.cancel_button.pack_forget()
+        self.check_app_update_button.pack(side="left")
+        self.install_app_update_button.pack(side="left", padx=(10, 0))
+        
+        self.app_update_status.configure(text="❌ Download cancelled", text_color="#F44336")
+        self.update_progress_label.configure(text="")
+        self.update_progress_bar.set(0)
+    
+    def _on_closing(self):
+        """Handle window close event"""
+        # Cancel any ongoing download
+        if self.download_thread and self.download_thread.is_alive():
+            self.download_cancelled = True
+            self.download_paused = False
+        
+        # Destroy the dialog
+        self.grab_release()
+        self.destroy()
     
     def _setup_theme_section(self, parent):
         """Setup theme selection section"""
