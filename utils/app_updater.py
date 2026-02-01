@@ -199,40 +199,63 @@ class AppUpdater:
             temp_dir = tempfile.gettempdir()
             script_path = os.path.join(temp_dir, "yt_downloader_update.bat")
             
+            # Get directory where exe is located
+            exe_dir = os.path.dirname(current_exe)
+            backup_dir = os.path.join(exe_dir, "old_backup")
+            
+            # Get just the filename
+            exe_name = os.path.basename(current_exe)
+            
             # Batch script that:
             # 1. Waits for current process to close
-            # 2. Backs up old exe
-            # 3. Copies new exe to old location
-            # 4. Starts new exe
-            # 5. Deletes itself
+            # 2. Creates old_backup folder
+            # 3. Moves old exe to old_backup folder
+            # 4. Copies new exe to current location
+            # 5. Starts new exe
+            # 6. Deletes temp file and itself
             
             script_content = f"""@echo off
-echo YouTube Downloader - Update in Progress...
+title YouTube Downloader - Update in Progress
 echo.
-echo Please wait while we update your application...
+echo  ========================================
+echo   YouTube Downloader - Auto Update
+echo  ========================================
+echo.
+echo  Please wait while we update your application...
+echo.
 timeout /t 2 /nobreak >nul
 
 :WAIT_LOOP
-tasklist /FI "IMAGENAME eq YouTube Downloader.exe" 2>NUL | find /I /N "YouTube Downloader.exe">NUL
+tasklist /FI "IMAGENAME eq {exe_name}" 2>NUL | find /I /N "{exe_name}">NUL
 if "%ERRORLEVEL%"=="0" (
     timeout /t 1 /nobreak >nul
     goto WAIT_LOOP
 )
 
-echo Backing up old version...
-if exist "{current_exe}.backup" del /f /q "{current_exe}.backup"
-move /y "{current_exe}" "{current_exe}.backup" >nul 2>&1
+echo  [1/4] Creating backup folder...
+if not exist "{backup_dir}" mkdir "{backup_dir}"
 
-echo Installing new version...
+echo  [2/4] Backing up old version...
+if exist "{current_exe}" (
+    move /y "{current_exe}" "{backup_dir}\{exe_name}" >nul 2>&1
+)
+
+echo  [3/4] Installing new version...
 copy /y "{new_exe}" "{current_exe}" >nul
 
-echo Starting new version...
+echo  [4/4] Starting new version...
 start "" "{current_exe}"
 
-echo Cleaning up...
+echo.
+echo  Update completed successfully!
+echo  Old version saved to: old_backup folder
+echo.
 timeout /t 2 /nobreak >nul
+
+echo  Cleaning up...
 del /f /q "{new_exe}" >nul 2>&1
 del /f /q "%~f0" >nul 2>&1
+exit
 """
             
             with open(script_path, 'w') as f:

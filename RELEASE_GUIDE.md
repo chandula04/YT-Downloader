@@ -560,3 +560,10 @@ You now know how to:
 *Last updated: February 1, 2026*
 *YouTube Downloader v2.0.0*
 *Created by CMW SOFTWARE*
+
+
+📝 Important Understanding:
+❌ NEVER commit to Git:
+build/ folder (temporary build files)
+dist/ folder (your .exe file)
+*.spec files (PyInstaller config)

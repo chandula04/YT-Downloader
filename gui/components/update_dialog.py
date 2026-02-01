@@ -192,29 +192,27 @@ class UpdateDialog(ctk.CTkToplevel):
     def _install_update(self):
         """Install the downloaded update"""
         self.progress_label.configure(text="✅ Download complete! Installing...")
+        self.update_button.configure(text="Installing...")
         
-        result = messagebox.askyesno(
-            "Ready to Update",
-            "Download complete!\n\n"
-            "The application will close and restart with the new version.\n\n"
-            "Continue with installation?",
-            parent=self
-        )
-        
-        if result:
-            # Apply update (this will close the app)
-            success = self.updater.apply_update(self.downloaded_file)
-            if success:
-                # Close the entire application
-                self.parent.quit()
-            else:
-                messagebox.showerror(
-                    "Update Failed",
-                    "Failed to install update. Please try updating manually.",
-                    parent=self
-                )
-                self.destroy()
+        # Auto-install without confirmation for smoother UX
+        self.after(500, self._do_install)
+    
+    def _do_install(self):
+        """Perform the actual installation"""
+        # Apply update (this will close the app)
+        success = self.updater.apply_update(self.downloaded_file)
+        if success:
+            # Show brief success message
+            self.progress_label.configure(text="✨ Update installed! Restarting...")
+            self.update_idletasks()
+            # Close the entire application after brief delay
+            self.after(1000, self.parent.quit)
         else:
+            messagebox.showerror(
+                "Update Failed",
+                "Failed to install update. Please try updating manually.",
+                parent=self
+            )
             self.destroy()
     
     def _download_failed(self):

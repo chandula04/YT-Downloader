@@ -229,15 +229,20 @@ class SettingsDialog(ctk.CTkToplevel):
         # Import and show update dialog
         try:
             from gui.components.update_dialog import UpdateDialog
+            # Close settings dialog first
+            self.withdraw()  # Hide immediately
+            # Show update dialog on parent (main window)
             UpdateDialog(
-                self,
+                self.parent,
                 APP_VERSION,
                 self.app_update_info['version'],
                 self.app_update_info['notes'],
                 self.app_updater
             )
-            self.destroy()
+            # Destroy settings dialog after update dialog is shown
+            self.after(100, self.destroy)
         except Exception as e:
+            self.deiconify()  # Show again if error
             messagebox.showerror(
                 "Error",
                 f"Failed to show update dialog: {e}",
