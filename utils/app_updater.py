@@ -123,10 +123,21 @@ class AppUpdater:
             filename = f"YouTubeDownloader_v{self.latest_version}.exe"
             temp_path = os.path.join(temp_dir, filename)
             
+            print(f"📁 Temp path: {temp_path}")
+            
             # Download with progress tracking
+            print("🌐 Sending request...")
             response = requests.get(self.download_url, stream=True, timeout=30)
+            
+            if response.status_code != 200:
+                print(f"❌ HTTP Error: {response.status_code}")
+                return None
+            
             total_size = int(response.headers.get('content-length', 0))
             downloaded = 0
+            
+            print(f"📦 Total size: {total_size / (1024*1024):.1f} MB")
+            print("⬇️ Starting download...")
             
             with open(temp_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
@@ -139,10 +150,16 @@ class AppUpdater:
                             progress_callback(downloaded, total_size, percentage)
             
             print(f"✅ Update downloaded to: {temp_path}")
+            print(f"📊 File size: {os.path.getsize(temp_path) / (1024*1024):.1f} MB")
             return temp_path
             
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Network error: {e}")
+            return None
         except Exception as e:
             print(f"❌ Download failed: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def apply_update(self, downloaded_file):

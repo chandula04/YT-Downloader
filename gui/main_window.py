@@ -588,11 +588,7 @@ class MainWindow(ctk.CTk):
             ctk.CTkButton(
                 app_version_frame,
                 text="⬇️ Update Now",
-                command=lambda: (popup.destroy(), self._show_update_dialog(
-                    self.app_update_info['updater'],
-                    self.app_update_info['version'],
-                    self.app_update_info['notes']
-                )),
+                command=lambda: (popup.destroy(), self._open_settings()),
                 height=32,
                 fg_color="#4CAF50",
                 hover_color="#45a049",

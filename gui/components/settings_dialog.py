@@ -42,6 +42,9 @@ class SettingsDialog(ctk.CTkToplevel):
         # Setup UI
         self._setup_ui()
         
+        # Auto-check for app updates when settings opens
+        self.after(100, self._check_app_update)
+        
         # Focus on this window
         self.focus()
     
@@ -140,7 +143,7 @@ class SettingsDialog(ctk.CTkToplevel):
         # Status label
         self.app_update_status = ctk.CTkLabel(
             app_update_frame,
-            text="Click 'Check for Updates' to see if a new version is available",
+            text="Checking for updates...",
             font=("Arial", 12),
             text_color="#A0A0A0"
         )
@@ -148,7 +151,7 @@ class SettingsDialog(ctk.CTkToplevel):
         
         # Button row
         button_row = ctk.CTkFrame(app_update_frame, fg_color="transparent")
-        button_row.pack(fill="x", padx=20, pady=(0, 20))
+        button_row.pack(fill="x", padx=20, pady=(0, 10))
         
         self.check_app_update_button = ctk.CTkButton(
             button_row,
@@ -172,12 +175,40 @@ class SettingsDialog(ctk.CTkToplevel):
             corner_radius=8,
             fg_color="#FF9800",
             hover_color="#F57C00",
-            command=self._install_app_update
+            command=self._start_download
         )
         # Initially hidden
         
+        # Progress bar (hidden initially)
+        self.update_progress_frame = ctk.CTkFrame(app_update_frame, fg_color="transparent")
+        
+        self.update_progress_label = ctk.CTkLabel(
+            self.update_progress_frame,
+            text="",
+            font=("Arial", 12),
+            text_color="#A0A0A0"
+        )
+        self.update_progress_label.pack(pady=(0, 5))
+        
+        self.update_progress_bar = ctk.CTkProgressBar(self.update_progress_frame)
+        self.update_progress_bar.pack(fill="x", padx=20, pady=(0, 10))
+        self.update_progress_bar.set(0)
+        
+        # Restart button (hidden initially)
+        self.restart_button = ctk.CTkButton(
+            app_update_frame,
+            text="🔄 Restart Now",
+            height=45,
+            font=("Arial", 16, "bold"),
+            corner_radius=8,
+            fg_color="#4CAF50",
+            hover_color="#45a049",
+            command=self._restart_app
+        )
+        
         self.app_updater = None
         self.app_update_info = None
+        self.downloaded_file = None
     
     def _check_app_update(self):
         """Check for application updates"""
@@ -221,33 +252,110 @@ class SettingsDialog(ctk.CTkToplevel):
             text_color="#F44336"
         )
     
-    def _install_app_update(self):
-        """Install the available app update"""
+    def _start_download(self):
+        """Start downloading update in Settings"""
         if not self.app_updater or not self.app_update_info:
+            print("❌ No updater or update info available")
             return
         
-        # Import and show update dialog
-        try:
-            from gui.components.update_dialog import UpdateDialog
-            # Close settings dialog first
-            self.withdraw()  # Hide immediately
-            # Show update dialog on parent (main window)
-            UpdateDialog(
-                self.parent,
-                APP_VERSION,
-                self.app_update_info['version'],
-                self.app_update_info['notes'],
-                self.app_updater
-            )
-            # Destroy settings dialog after update dialog is shown
-            self.after(100, self.destroy)
-        except Exception as e:
-            self.deiconify()  # Show again if error
+        if not self.app_updater.download_url:
             messagebox.showerror(
                 "Error",
-                f"Failed to show update dialog: {e}",
+                "Download URL not available.\n\nPlease check for updates again.",
                 parent=self
             )
+            return
+        
+        # Hide buttons, show progress
+        self.check_app_update_button.pack_forget()
+        self.install_app_update_button.pack_forget()
+        self.update_progress_frame.pack(fill="x", padx=20, pady=(0, 20))
+        
+        self.app_update_status.configure(text="Downloading update...", text_color="#FF9800")
+        
+        # Start download in thread
+        threading.Thread(target=self._download_update, daemon=True).start()
+    
+    def _download_update(self):
+        """Download update in background thread"""
+        try:
+            print("📥 Starting download thread...")
+            
+            def progress_callback(downloaded, total, percentage):
+                self.after(0, lambda d=downloaded, t=total, p=percentage: 
+                          self._update_download_progress(d, t, p))
+            
+            downloaded_file = self.app_updater.download_update(progress_callback)
+            
+            if downloaded_file:
+                self.downloaded_file = downloaded_file
+                self.after(0, self._download_complete)
+            else:
+                self.after(0, self._download_failed)
+        except Exception as e:
+            print(f"❌ Download exception: {e}")
+            import traceback
+            traceback.print_exc()
+            self.after(0, lambda: self._download_failed(str(e)))
+    
+    def _update_download_progress(self, downloaded, total, percentage):
+        """Update progress bar in Settings"""
+        self.update_progress_bar.set(percentage / 100)
+        size_mb = downloaded / (1024 * 1024)
+        total_mb = total / (1024 * 1024)
+        self.update_progress_label.configure(
+            text=f"Downloading: {size_mb:.1f} MB / {total_mb:.1f} MB ({percentage:.1f}%)"
+        )
+    
+    def _download_complete(self):
+        """Handle download completion"""
+        self.app_update_status.configure(text="✅ Download complete! Ready to install.", text_color="#81C784")
+        self.update_progress_label.configure(text="✨ Update downloaded successfully!")
+        self.update_progress_bar.set(1.0)
+        
+        # Hide progress, show restart button
+        self.update_progress_frame.pack_forget()
+        self.restart_button.pack(fill="x", padx=20, pady=(10, 20))
+    
+    def _download_failed(self, error=None):
+        """Handle download failure"""
+        # Show buttons again, hide progress
+        self.update_progress_frame.pack_forget()
+        self.check_app_update_button.pack(side="left")
+        self.install_app_update_button.pack(side="left", padx=(10, 0))
+        
+        error_msg = f"Failed to download update.\n\n{error}" if error else "Failed to download update."
+        self.app_update_status.configure(
+            text=f"❌ {error_msg}",
+            text_color="#F44336"
+        )
+        
+        messagebox.showerror(
+            "Download Failed",
+            f"{error_msg}\n\nPlease check your internet connection and try again.",
+            parent=self
+        )
+    
+    def _restart_app(self):
+        """Install update and restart app"""
+        if not self.downloaded_file:
+            return
+        
+        self.app_update_status.configure(text="Installing update...", text_color="#FF9800")
+        self.restart_button.configure(state="disabled", text="Installing...")
+        
+        # Apply update
+        success = self.app_updater.apply_update(self.downloaded_file)
+        if success:
+            # Close everything and let batch script restart
+            self.master.quit()
+        else:
+            messagebox.showerror(
+                "Update Failed",
+                "Failed to install update. Please try updating manually.",
+                parent=self
+            )
+            self.restart_button.configure(state="normal", text="🔄 Restart Now")
     
     def _setup_theme_section(self, parent):
         """Setup theme selection section"""

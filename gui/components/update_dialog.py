@@ -13,12 +13,22 @@ class UpdateDialog(ctk.CTkToplevel):
     def __init__(self, parent, current_version, new_version, release_notes, updater):
         super().__init__(parent)
         
+        print(f"🎨 UpdateDialog initializing...")
+        print(f"   - Current version: {current_version}")
+        print(f"   - New version: {new_version}")
+        print(f"   - Updater: {updater}")
+        print(f"   - Updater download_url: {getattr(updater, 'download_url', 'NOT SET')}")
+        
         self.parent = parent
         self.current_version = current_version
         self.new_version = new_version
         self.release_notes = release_notes
         self.updater = updater
         self.downloaded_file = None
+        
+        # Verify updater has download URL
+        if not hasattr(updater, 'download_url') or not updater.download_url:
+            print("⚠️ WARNING: Updater has no download_url!")
         
         # Window setup
         self.title("Update Available")
@@ -34,6 +44,7 @@ class UpdateDialog(ctk.CTkToplevel):
         self._setup_ui()
         
         self.focus()
+        print("✅ UpdateDialog initialized successfully")
     
     def _center_window(self):
         """Center dialog on parent"""
@@ -160,25 +171,38 @@ class UpdateDialog(ctk.CTkToplevel):
     
     def _start_update(self):
         """Start the update process"""
+        print("🔄 Update button clicked - starting download...")
         self.update_button.configure(state="disabled", text="Downloading...")
         self.progress_frame.pack(fill="x", pady=(0, 15), before=self.update_button.master)
+        
+        # Force UI update
+        self.update_idletasks()
         
         # Start download in background thread
         threading.Thread(target=self._download_and_install, daemon=True).start()
     
     def _download_and_install(self):
         """Download and install update (background thread)"""
-        # Download with progress callback
-        def progress_callback(downloaded, total, percentage):
-            self.after(0, lambda: self._update_progress(downloaded, total, percentage))
-        
-        downloaded_file = self.updater.download_update(progress_callback)
-        
-        if downloaded_file:
-            self.downloaded_file = downloaded_file
-            self.after(0, self._install_update)
-        else:
-            self.after(0, self._download_failed)
+        try:
+            print("📥 Starting download thread...")
+            # Download with progress callback
+            def progress_callback(downloaded, total, percentage):
+                self.after(0, lambda d=downloaded, t=total, p=percentage: self._update_progress(d, t, p))
+            
+            print(f"⬇️ Calling updater.download_update()...")
+            downloaded_file = self.updater.download_update(progress_callback)
+            print(f"📦 Download result: {downloaded_file}")
+            
+            if downloaded_file:
+                self.downloaded_file = downloaded_file
+                self.after(0, self._install_update)
+            else:
+                self.after(0, self._download_failed)
+        except Exception as e:
+            print(f"❌ Download exception: {e}")
+            import traceback
+            traceback.print_exc()
+            self.after(0, lambda: self._download_failed_with_error(str(e)))
     
     def _update_progress(self, downloaded, total, percentage):
         """Update progress bar"""
@@ -217,12 +241,28 @@ class UpdateDialog(ctk.CTkToplevel):
     
     def _download_failed(self):
         """Handle download failure"""
+        print("❌ Download failed - no file returned")
         self.update_button.configure(state="normal", text="⬇️ Download & Install Update")
         self.progress_frame.pack_forget()
         
         messagebox.showerror(
             "Download Failed",
             "Failed to download the update.\n\n"
+            "Please check your internet connection and try again,\n"
+            "or download manually from GitHub.",
+            parent=self
+        )
+    
+    def _download_failed_with_error(self, error_msg):
+        """Handle download failure with specific error"""
+        print(f"❌ Download failed with error: {error_msg}")
+        self.update_button.configure(state="normal", text="⬇️ Download & Install Update")
+        self.progress_frame.pack_forget()
+        
+        messagebox.showerror(
+            "Download Failed",
+            f"Failed to download the update.\n\n"
+            f"Error: {error_msg}\n\n"
             "Please check your internet connection and try again,\n"
             "or download manually from GitHub.",
             parent=self
