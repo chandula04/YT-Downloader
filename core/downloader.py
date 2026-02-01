@@ -171,14 +171,18 @@ class DownloadManager:
                 self._download_adaptive_stream(best_stream, video, output_path)
     
     def _download_audio(self, video, output_path):
-        """Download audio only as MP3"""
+        """Download audio only as MP3 - INSTANT START"""
+        # Register progress first
+        video.register_on_progress_callback(self.progress_tracker)
+        
+        # Get stream (cached from preview)
         audio_stream = self.youtube_handler.get_audio_only_stream(video)
         if not audio_stream:
             raise Exception("No audio stream available")
 
+        # Size is fetched lazily during download
         total_size = getattr(audio_stream, 'filesize', None) or getattr(audio_stream, 'filesize_approx', None) or 0
         self._reset_progress_tracking(total_size)
-        video.register_on_progress_callback(self.progress_tracker)
         
         # Download audio directly as mp3
         output_filename = f"{safe_filename(video.title)}.mp3"
@@ -191,8 +195,11 @@ class DownloadManager:
             raise
     
     def _download_adaptive(self, video, resolution, output_path):
-        """Download adaptive streams and merge with FFmpeg"""
-        # Get video and audio streams
+        """Download adaptive streams and merge with FFmpeg - OPTIMIZED FOR INSTANT START"""
+        # Register progress callback FIRST (before fetching streams)
+        video.register_on_progress_callback(self.progress_tracker)
+        
+        # Get video and audio streams (cached if already accessed)
         video_stream = self.youtube_handler.get_stream_by_quality(
             video, resolution, "Adaptive"
         )
@@ -201,10 +208,9 @@ class DownloadManager:
         if not video_stream or not audio_stream:
             raise Exception("No suitable streams available")
         
-        # Download video
+        # Download video - size info fetched lazily during download
         total_size = getattr(video_stream, 'filesize', None) or getattr(video_stream, 'filesize_approx', None) or 0
         self._reset_progress_tracking(total_size)
-        video.register_on_progress_callback(self.progress_tracker)
         
         try:
             video_path = video_stream.download(output_path=output_path, filename="video_temp.mp4")
@@ -219,10 +225,9 @@ class DownloadManager:
             self.ffmpeg_handler.cleanup_default_temp_files(output_path)
             raise KeyboardInterrupt("Download cancelled")
         
-        # Download audio
+        # Download audio (progress callback already registered)
         total_size = getattr(audio_stream, 'filesize', None) or getattr(audio_stream, 'filesize_approx', None) or 0
         self._reset_progress_tracking(total_size)
-        video.register_on_progress_callback(self.progress_tracker)
         
         try:
             audio_path = audio_stream.download(output_path=output_path, filename="audio_temp.mp4")
@@ -541,13 +546,18 @@ class DownloadManager:
     def _download_video_thread(self, video_url, quality_str, is_audio, success_callback, error_callback):
         """Thread function for single video download with enhanced error handling"""
         try:
-            # Use cached video if available to speed up download start
+            # INSTANT START: Use cached video if available
             if self.cached_video and self.cached_video_url == video_url:
                 video = self.cached_video
-                print("⚡ Using cached video data for instant download")
+                print("⚡ INSTANT DOWNLOAD: Using cached video (0ms delay)")
             else:
+                print("⏳ Loading video (no cache available)...")
                 video = self.youtube_handler.load_video(video_url)
+                # Cache for next time
+                self.cached_video = video
+                self.cached_video_url = video_url
             
+            # Start download immediately without re-fetching stream data
             self.download_single_video(video, quality_str, is_audio, file_manager.get_download_path())
             
             if success_callback:

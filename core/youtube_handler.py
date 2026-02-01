@@ -15,6 +15,7 @@ class YouTubeHandler:
     def __init__(self):
         self.current_video = None
         self.current_playlist = None
+        self.stream_cache = {}  # Cache streams by video URL for instant download
     
     def load_video_with_download_retry(self, url):
         """
@@ -945,7 +946,7 @@ class YouTubeHandler:
     
     def get_stream_by_quality(self, video, resolution, stream_type):
         """
-        Get specific stream by quality and type
+        Get specific stream by quality and type - CACHED FOR INSTANT ACCESS
         
         Args:
             video (YouTube): YouTube video object
@@ -955,23 +956,39 @@ class YouTubeHandler:
         Returns:
             Stream: YouTube stream object
         """
+        # Create cache key
+        cache_key = f"{video.watch_url}_{resolution}_{stream_type}"
+        
+        # Return cached stream if available
+        if cache_key in self.stream_cache:
+            print(f"⚡ Using cached {resolution} {stream_type} stream (0ms)")
+            return self.stream_cache[cache_key]
+        
+        # Fetch and cache stream
         if "Progressive" in stream_type:
-            return video.streams.filter(
+            stream = video.streams.filter(
                 progressive=True, 
                 file_extension='mp4', 
                 res=resolution
             ).first()
         else:
-            return video.streams.filter(
+            stream = video.streams.filter(
                 adaptive=True, 
                 file_extension='mp4', 
                 res=resolution,
                 only_video=True
             ).first()
+        
+        # Cache for instant reuse
+        if stream:
+            self.stream_cache[cache_key] = stream
+            print(f"💾 Cached {resolution} {stream_type} stream")
+        
+        return stream
     
     def get_best_audio_stream(self, video):
         """
-        Get the best available audio stream
+        Get the best available audio stream - CACHED FOR INSTANT ACCESS
         
         Args:
             video (YouTube): YouTube video object
@@ -979,16 +996,33 @@ class YouTubeHandler:
         Returns:
             Stream: Best audio stream
         """
+        # Create cache key
+        cache_key = f"{video.watch_url}_best_audio"
+        
+        # Return cached stream if available
+        if cache_key in self.stream_cache:
+            print("⚡ Using cached best audio stream (0ms)")
+            return self.stream_cache[cache_key]
+        
+        # Fetch and cache stream
         audio_streams = video.streams.filter(adaptive=True, only_audio=True)
         mp4_audio = audio_streams.filter(file_extension='mp4')
         preferred = mp4_audio.order_by('abr').desc().first()
         if preferred:
-            return preferred
-        return audio_streams.order_by('abr').desc().first()
+            stream = preferred
+        else:
+            stream = audio_streams.order_by('abr').desc().first()
+        
+        # Cache for instant reuse
+        if stream:
+            self.stream_cache[cache_key] = stream
+            print("💾 Cached best audio stream")
+        
+        return stream
     
     def get_audio_only_stream(self, video):
         """
-        Get audio-only stream for MP3 download
+        Get audio-only stream for MP3 download - CACHED FOR INSTANT ACCESS
         
         Args:
             video (YouTube): YouTube video object
@@ -996,4 +1030,20 @@ class YouTubeHandler:
         Returns:
             Stream: Audio-only stream
         """
-        return video.streams.get_audio_only()
+        # Create cache key
+        cache_key = f"{video.watch_url}_audio_only"
+        
+        # Return cached stream if available
+        if cache_key in self.stream_cache:
+            print("⚡ Using cached audio-only stream (0ms)")
+            return self.stream_cache[cache_key]
+        
+        # Fetch and cache stream
+        stream = video.streams.get_audio_only()
+        
+        # Cache for instant reuse
+        if stream:
+            self.stream_cache[cache_key] = stream
+            print("💾 Cached audio-only stream")
+        
+        return stream
