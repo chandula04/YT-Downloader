@@ -344,6 +344,7 @@ class SettingsDialog(ctk.CTkToplevel):
         # Reset flags
         self.download_cancelled = False
         self.download_paused = False
+        self.download_start_time = None
         
         # Hide buttons, show progress and controls
         self.check_app_update_button.pack_forget()
@@ -365,21 +366,34 @@ class SettingsDialog(ctk.CTkToplevel):
         try:
             print("📥 Starting download thread...")
             
+            import time
+            self.download_start_time = time.time()
+            
             def progress_callback(downloaded, total, percentage):
                 # Check if download is cancelled
                 if self.download_cancelled:
                     return False  # Signal to stop download
                 
                 # Wait if paused
+                pause_start = None
                 while self.download_paused and not self.download_cancelled:
-                    import time
+                    if pause_start is None:
+                        pause_start = time.time()
                     time.sleep(0.1)
+                
+                # Adjust start time for pause duration
+                if pause_start is not None:
+                    pause_duration = time.time() - pause_start
+                    self.download_start_time += pause_duration
                 
                 # Update UI only if widget still exists
                 try:
                     if self.winfo_exists():
-                        self.after(0, lambda d=downloaded, t=total, p=percentage: 
-                                  self._update_download_progress(d, t, p))
+                        elapsed_time = time.time() - self.download_start_time
+                        speed = downloaded / elapsed_time if elapsed_time > 0 else 0
+                        
+                        self.after(0, lambda d=downloaded, t=total, p=percentage, s=speed: 
+                                  self._update_download_progress(d, t, p, s))
                 except:
                     return False  # Stop if dialog destroyed
                 
@@ -415,8 +429,8 @@ class SettingsDialog(ctk.CTkToplevel):
             except:
                 pass
     
-    def _update_download_progress(self, downloaded, total, percentage):
-        """Update progress bar in Settings"""
+    def _update_download_progress(self, downloaded, total, percentage, speed=0):
+        """Update progress bar in Settings with speed info"""
         try:
             if not self.winfo_exists():
                 return
@@ -424,11 +438,19 @@ class SettingsDialog(ctk.CTkToplevel):
             self.update_progress_bar.set(percentage / 100)
             size_mb = downloaded / (1024 * 1024)
             total_mb = total / (1024 * 1024)
+            speed_mb = speed / (1024 * 1024)
             
             status = "⏸️ Paused" if self.download_paused else "Downloading"
-            self.update_progress_label.configure(
-                text=f"{status}: {size_mb:.1f} MB / {total_mb:.1f} MB ({percentage:.1f}%)"
-            )
+            
+            # Show speed only when downloading (not when paused)
+            if self.download_paused:
+                self.update_progress_label.configure(
+                    text=f"{status}: {size_mb:.1f} MB / {total_mb:.1f} MB ({percentage:.1f}%)"
+                )
+            else:
+                self.update_progress_label.configure(
+                    text=f"{status}: {size_mb:.1f} MB / {total_mb:.1f} MB ({percentage:.1f}%) - {speed_mb:.2f} MB/s"
+                )
         except Exception as e:
             print(f"⚠️ Progress update error: {e}")
     

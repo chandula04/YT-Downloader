@@ -103,7 +103,7 @@ class AppUpdater:
     
     def download_update(self, progress_callback=None):
         """
-        Download the latest version
+        Download the latest version with optimized speed
         
         Args:
             progress_callback: Optional callback(downloaded, total, percentage)
@@ -125,9 +125,28 @@ class AppUpdater:
             
             print(f"📁 Temp path: {temp_path}")
             
-            # Download with progress tracking
-            print("🌐 Sending request...")
-            response = requests.get(self.download_url, stream=True, timeout=30)
+            # Optimize headers for maximum download speed
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+            }
+            
+            # Download with progress tracking and optimized settings
+            print("🌐 Sending request with optimized settings...")
+            
+            # Create session for connection pooling and better performance
+            session = requests.Session()
+            session.headers.update(headers)
+            
+            # Longer timeout for large files, stream enabled for memory efficiency
+            response = session.get(
+                self.download_url, 
+                stream=True, 
+                timeout=(10, 300),  # (connect timeout, read timeout)
+                allow_redirects=True
+            )
             
             if response.status_code != 200:
                 print(f"❌ HTTP Error: {response.status_code}")
@@ -135,26 +154,38 @@ class AppUpdater:
             
             total_size = int(response.headers.get('content-length', 0))
             downloaded = 0
+            last_update = 0
             
             print(f"📦 Total size: {total_size / (1024*1024):.1f} MB")
-            print("⬇️ Starting download...")
+            print("⬇️ Starting high-speed download...")
             
-            with open(temp_path, 'wb') as f:
-                # Larger chunk size for faster downloads (256KB instead of 8KB)
-                for chunk in response.iter_content(chunk_size=262144):
+            # Open file with larger buffer for faster writing (1MB buffer)
+            with open(temp_path, 'wb', buffering=1048576) as f:
+                # Use 1MB chunks for maximum speed (1048576 bytes)
+                # This is optimal for high-speed connections (300Mbps+)
+                for chunk in response.iter_content(chunk_size=1048576):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
                         
+                        # Update progress less frequently to avoid UI overhead
+                        # Only update every 1MB or at milestones
                         if progress_callback and total_size > 0:
-                            percentage = (downloaded / total_size) * 100
-                            # Check if callback returns False (cancel signal)
-                            if progress_callback(downloaded, total_size, percentage) == False:
-                                print("🛑 Download cancelled by user")
-                                f.close()
-                                if os.path.exists(temp_path):
-                                    os.remove(temp_path)
-                                return None
+                            if downloaded - last_update >= 1048576 or downloaded == total_size:
+                                percentage = (downloaded / total_size) * 100
+                                last_update = downloaded
+                                
+                                # Check if callback returns False (cancel signal)
+                                result = progress_callback(downloaded, total_size, percentage)
+                                if result == False:
+                                    print("🛑 Download cancelled by user")
+                                    f.close()
+                                    if os.path.exists(temp_path):
+                                        os.remove(temp_path)
+                                    session.close()
+                                    return None
+            
+            session.close()
             
             print(f"✅ Update downloaded to: {temp_path}")
             print(f"📊 File size: {os.path.getsize(temp_path) / (1024*1024):.1f} MB")
