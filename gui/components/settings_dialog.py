@@ -2,6 +2,7 @@
 Settings dialog window for user configuration
 """
 
+import sys
 import customtkinter as ctk
 import threading
 from tkinter import filedialog, messagebox
@@ -14,12 +15,16 @@ from utils.app_updater import AppUpdater
 class SettingsDialog(ctk.CTkToplevel):
     """Settings dialog window"""
     
-    def __init__(self, parent, on_theme_change=None, on_settings_saved=None):
+    def __init__(self, parent, on_theme_change=None, on_settings_saved=None, on_library_update_complete=None):
         super().__init__(parent)
         
         self.parent = parent
         self.on_theme_change = on_theme_change
         self.on_settings_saved = on_settings_saved
+        self.on_library_update_complete = on_library_update_complete
+        
+        # Detect if running in portable mode (frozen exe)
+        self.is_portable = getattr(sys, 'frozen', False)
         
         # Window setup
         self.title("Settings")
@@ -90,8 +95,9 @@ class SettingsDialog(ctk.CTkToplevel):
         # Path Section
         self._setup_path_section(content_frame)
         
-        # Library Updates Section
-        self._setup_update_section(content_frame)
+        # Library Updates Section (only in development mode, not portable)
+        if not self.is_portable:
+            self._setup_update_section(content_frame)
         
         # Buttons - always at the bottom
         self._setup_buttons(main_frame)
@@ -397,6 +403,9 @@ class SettingsDialog(ctk.CTkToplevel):
             def _done():
                 self.update_status.configure(text=message)
                 self.update_button.configure(state="normal")
+                # Clear library notifications after successful update
+                if ok and self.on_library_update_complete:
+                    self.on_library_update_complete()
             self.after(0, _done)
 
         threading.Thread(target=worker, daemon=True).start()

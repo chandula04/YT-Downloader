@@ -39,7 +39,10 @@ class AppUpdater:
             # Get latest release info from GitHub
             response = requests.get(self.RELEASES_API, timeout=10)
             
-            if response.status_code != 200:
+            if response.status_code == 404:
+                print(f"ℹ️ No releases available yet on GitHub")
+                return False, None, None
+            elif response.status_code != 200:
                 print(f"❌ Failed to check updates: HTTP {response.status_code}")
                 return False, None, None
             

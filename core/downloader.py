@@ -32,6 +32,10 @@ class DownloadManager:
         self.batch_progress_callback = None
         self.current_video_index = -1
         self.total_videos_in_batch = 0
+        
+        # Video caching to prevent re-fetching
+        self.cached_video = None
+        self.cached_video_url = None
     
     def set_progress_callback(self, callback):
         """
@@ -537,7 +541,13 @@ class DownloadManager:
     def _download_video_thread(self, video_url, quality_str, is_audio, success_callback, error_callback):
         """Thread function for single video download with enhanced error handling"""
         try:
-            video = self.youtube_handler.load_video(video_url)
+            # Use cached video if available to speed up download start
+            if self.cached_video and self.cached_video_url == video_url:
+                video = self.cached_video
+                print("⚡ Using cached video data for instant download")
+            else:
+                video = self.youtube_handler.load_video(video_url)
+            
             self.download_single_video(video, quality_str, is_audio, file_manager.get_download_path())
             
             if success_callback:

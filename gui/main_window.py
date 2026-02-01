@@ -2,6 +2,7 @@
 Main application window for YouTube Downloader
 """
 
+import sys
 import customtkinter as ctk
 import threading
 from tkinter import messagebox
@@ -372,10 +373,16 @@ class MainWindow(ctk.CTk):
     
     def _open_settings(self):
         """Open the settings dialog"""
+        def on_library_update_complete():
+            # Clear library update notifications
+            self.pending_updates = []
+            self._update_notification_badge()
+        
         settings_dialog = SettingsDialog(
             self,
             on_theme_change=self._apply_theme,
-            on_settings_saved=self._update_path_display
+            on_settings_saved=self._update_path_display,
+            on_library_update_complete=on_library_update_complete
         )
         # No need for after() since callback handles it
     
@@ -465,7 +472,11 @@ class MainWindow(ctk.CTk):
         self.update_notif_button.pack(side="right", padx=(0, 12))
 
     def _start_update_check(self):
-        """Check if download libraries have updates and show notification."""
+        """Check if download libraries have updates and show notification (only in dev mode)."""
+        # Skip library updates in portable mode
+        if getattr(sys, 'frozen', False):
+            return
+            
         def worker():
             updates = check_library_updates(["pytubefix", "yt-dlp"])
             self.after(0, lambda: self._set_update_notifications(updates))
@@ -508,7 +519,8 @@ class MainWindow(ctk.CTk):
     
     def _update_notification_badge(self):
         """Update notification badge count"""
-        lib_count = len(getattr(self, 'pending_updates', []))
+        # Only count library updates if not in portable mode
+        lib_count = 0 if getattr(sys, 'frozen', False) else len(getattr(self, 'pending_updates', []))
         app_count = 1 if getattr(self, 'app_update_info', None) else 0
         total_count = lib_count + app_count
         
@@ -602,31 +614,32 @@ class MainWindow(ctk.CTk):
                 text_color="#81C784"
             ).pack(anchor="w", padx=12, pady=(0, 12))
         
-        # Library Updates Section
-        lib_title = ctk.CTkLabel(container, text="Library Updates", font=("Arial", 14, "bold"))
-        lib_title.pack(anchor="w", padx=15, pady=(10, 5))
+        # Library Updates Section (only in development mode)
+        if not getattr(sys, 'frozen', False):
+            lib_title = ctk.CTkLabel(container, text="Library Updates", font=("Arial", 14, "bold"))
+            lib_title.pack(anchor="w", padx=15, pady=(10, 5))
 
-        if self.pending_updates:
-            lib_frame = ctk.CTkFrame(container, fg_color="#3B3B3B", corner_radius=8)
-            lib_frame.pack(fill="x", padx=15, pady=(0, 10))
-            
-            for item in self.pending_updates:
-                line = f"• {item['name']}: {item['current']} → {item['latest']}"
-                ctk.CTkLabel(lib_frame, text=line, font=("Arial", 12)).pack(anchor="w", padx=12, pady=4)
-            
-            ctk.CTkLabel(
-                lib_frame,
-                text="Open Settings to update libraries.",
-                font=("Arial", 11),
-                text_color="#A0A0A0"
-            ).pack(anchor="w", padx=12, pady=(2, 10))
-        else:
-            ctk.CTkLabel(
-                container, 
-                text="✅ All libraries are up to date.", 
-                font=("Arial", 12),
-                text_color="#81C784"
-            ).pack(anchor="w", padx=15, pady=(0, 10))
+            if self.pending_updates:
+                lib_frame = ctk.CTkFrame(container, fg_color="#3B3B3B", corner_radius=8)
+                lib_frame.pack(fill="x", padx=15, pady=(0, 10))
+                
+                for item in self.pending_updates:
+                    line = f"• {item['name']}: {item['current']} → {item['latest']}"
+                    ctk.CTkLabel(lib_frame, text=line, font=("Arial", 12)).pack(anchor="w", padx=12, pady=4)
+                
+                ctk.CTkLabel(
+                    lib_frame,
+                    text="Open Settings to update libraries.",
+                    font=("Arial", 11),
+                    text_color="#A0A0A0"
+                ).pack(anchor="w", padx=12, pady=(4, 12))
+            else:
+                ctk.CTkLabel(
+                    container, 
+                    text="✅ All libraries are up to date.", 
+                    font=("Arial", 12),
+                    text_color="#81C784"
+                ).pack(anchor="w", padx=15, pady=(0, 10))
 
         ctk.CTkButton(
             container,
@@ -940,6 +953,10 @@ class MainWindow(ctk.CTk):
         try:
             # Load video (this runs in background thread)
             video = self.youtube_handler.load_video(url)
+            
+            # Cache the video for instant download start
+            self.download_manager.cached_video = video
+            self.download_manager.cached_video_url = url
             
             # Get video info and thumbnail
             video_info = self.youtube_handler.get_video_info(video)
@@ -1409,8 +1426,9 @@ class MainWindow(ctk.CTk):
     def _cancel_download(self):
         """Handle cancel button click"""
         self.download_manager.cancel_download()
-        # Show immediate cancellation feedback
-        self.progress_tracker.update_progress(0, 0, 0, 0, 0, "⏹️ Cancelling download...")
+        # Immediately reset progress to 0 - force instant UI update
+        self.progress_tracker.reset()
+        self.update_idletasks()  # Force immediate UI refresh
         self.cancel_button.configure(state="disabled", text="Cancelling...")
     
     def _on_progress_update(self, downloaded, total, percentage, speed, elapsed, custom_text=None):
