@@ -52,9 +52,16 @@ class YtDlpHandler:
     def _build_format_for_height(height: int, is_audio: bool, tv_format: bool = False) -> str:
         if is_audio:
             return "bestaudio/best"
+        
+        # For TV format, cap resolution at 1080p for older TV decoders
+        if tv_format and height > 1080:
+            height = 1080
+            
         if height and height > 0:
             if tv_format:
                 return (
+                    f"bv*[vcodec^=avc1][height<={height}]+ba[ext=m4a]/"
+                    f"bv*[ext=mp4][height<={height}]+ba[ext=m4a]/"
                     f"bv*[height<={height}]+ba/"
                     f"b[height<={height}]/"
                     f"bestvideo*+bestaudio/best"
@@ -67,7 +74,11 @@ class YtDlpHandler:
             )
         # Default best if no height
         if tv_format:
-            return "bv*+ba/b/best"
+            return (
+                "bv*[vcodec^=avc1][height<=1080]+ba[ext=m4a]/"
+                "bv*[ext=mp4][height<=1080]+ba[ext=m4a]/"
+                "bv*[height<=1080]+ba/b/best"
+            )
         return "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best"
 
     @staticmethod
@@ -212,7 +223,7 @@ class YtDlpHandler:
                     elapsed = int(time.time() - start_time)
                     progress_callback(downloaded, total, pct, speed_mbps, elapsed, None)
                 elif d.get('status') == 'finished':
-                    stage_msg = "Merging to MKV with FFmpeg..." if (tv_format and not is_audio) else "Processing with FFmpeg..."
+                    stage_msg = "Converting for TV with FFmpeg..." if (tv_format and not is_audio) else "Processing with FFmpeg..."
                     progress_callback(0, 0, 95, 0, 0, stage_msg)
             except KeyboardInterrupt:
                 raise
@@ -235,15 +246,30 @@ class YtDlpHandler:
             'remote_components': ['ejs:github'],
         }
 
-        # If TV format is requested for video, ensure remuxing/conversion to MKV occurs even for single streams
+        # For TV format, guarantee H.264 (AVC) video + AAC audio encoding inside MKV container
         if use_mkv:
-            ydl_opts['remux_video'] = 'mkv'
             ydl_opts['postprocessors'] = [
                 {
-                    'key': 'FFmpegVideoRemuxer',
+                    'key': 'FFmpegVideoConvertor',
                     'preferedformat': 'mkv',
                 }
             ]
+            tv_ffmpeg_args = [
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-profile:v', 'high',
+                '-level:v', '4.1',
+                '-crf', '20',
+                '-preset', 'faster',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-ar', '48000',
+                '-ac', '2'
+            ]
+            ydl_opts['postprocessor_args'] = {
+                'merger': tv_ffmpeg_args,
+                'VideoConvertor': tv_ffmpeg_args
+            }
 
         node_path = YtDlpHandler._get_node_path()
         if node_path:

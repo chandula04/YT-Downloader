@@ -344,9 +344,8 @@ class FFmpegHandler:
     @staticmethod
     def convert_to_mkv(input_path, output_path=None, progress_callback=None):
         """
-        Convert/remux any video file to MKV format using FFmpeg.
-        First attempts fast direct stream copy without re-encoding;
-        falls back to high quality H.264 + AAC encoding if stream copy fails.
+        Convert any video file to 100% TV-compatible MKV format (H.264 + AAC stereo).
+        Guaranteed compatibility with Panasonic, Samsung, LG, Sony and older LCD/LED TVs.
         """
         ffmpeg_path = FFmpegHandler.get_ffmpeg_path()
         if not ffmpeg_path:
@@ -359,36 +358,26 @@ class FFmpegHandler:
         if output_path is None:
             output_path = str(input_p.with_suffix('.mkv'))
 
-        # Try fast direct stream copy first (instant, 100% loss-free)
-        cmd_copy = [
+        cmd_encode = [
             str(ffmpeg_path),
             '-hide_banner',
             '-i', str(input_path),
-            '-c', 'copy',
+            '-c:v', FFMPEG_VIDEO_CODEC or 'libx264',
+            '-pix_fmt', FFMPEG_PIXEL_FORMAT or 'yuv420p',
+            '-profile:v', FFMPEG_TV_VIDEO_PROFILE or 'high',
+            '-level:v', FFMPEG_TV_VIDEO_LEVEL or '4.1',
+            '-crf', str(FFMPEG_TV_CRF or 20),
+            '-preset', FFMPEG_VIDEO_PRESET or 'faster',
+            '-c:a', FFMPEG_AUDIO_CODEC or 'aac',
+            '-b:a', FFMPEG_TV_AUDIO_BITRATE or '192k',
+            '-ar', str(FFMPEG_TV_AUDIO_SAMPLERATE or 48000),
+            '-ac', str(FFMPEG_TV_AUDIO_CHANNELS or 2),
             '-y', str(output_path)
         ]
-        try:
-            FFmpegHandler._run_ffmpeg_command(cmd_copy, progress_callback, "Remuxing to MKV")
-            if progress_callback:
-                progress_callback(100, "Conversion completed!")
-            return output_path
-        except Exception:
-            # Fallback to high-quality re-encoding if stream copy fails
-            cmd_encode = [
-                str(ffmpeg_path),
-                '-hide_banner',
-                '-i', str(input_path),
-                '-c:v', FFMPEG_VIDEO_CODEC,
-                '-crf', str(FFMPEG_TV_CRF or 20),
-                '-preset', FFMPEG_VIDEO_PRESET,
-                '-c:a', FFMPEG_AUDIO_CODEC,
-                '-b:a', '192k',
-                '-y', str(output_path)
-            ]
-            FFmpegHandler._run_ffmpeg_command(cmd_encode, progress_callback, "Converting to MKV")
-            if progress_callback:
-                progress_callback(100, "Conversion completed!")
-            return output_path
+        FFmpegHandler._run_ffmpeg_command(cmd_encode, progress_callback, "Converting to TV MKV")
+        if progress_callback:
+            progress_callback(100, "Conversion completed!")
+        return output_path
 
     @staticmethod
     def _build_merge_command(ffmpeg_path, video_path, audio_path, output_path, tv_profile_enabled):

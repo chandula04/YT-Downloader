@@ -643,7 +643,7 @@ class SettingsDialog(ctk.CTkToplevel):
         # Section header
         header_label = ctk.CTkLabel(
             tv_frame, 
-            text="📺 TV Format (MKV Compatibility)", 
+            text="📺 TV Format (MKV + H.264 / AAC Compatibility)", 
             font=("Arial", 18, "bold")
         )
         header_label.pack(anchor="w", padx=20, pady=(20, 10))
@@ -651,8 +651,9 @@ class SettingsDialog(ctk.CTkToplevel):
         # Explanatory description
         desc_label = ctk.CTkLabel(
             tv_frame,
-            text="Enable this option if your TV or media player only plays .mkv files and cannot play standard .mp4 files.\n"
-                 "When enabled, FFmpeg will automatically merge and package downloaded videos into MKV (.mkv) format.",
+            text="Optimized for Panasonic, Samsung, LG, Sony and older LCD/LED TVs.\n"
+                 "When enabled, videos are encoded into universal H.264 (AVC) video and AAC stereo audio in an MKV container,\n"
+                 "eliminating 'unsupported codec' errors without needing external converters.",
             font=("Arial", 12),
             text_color="#A0A0A0",
             wraplength=680,
