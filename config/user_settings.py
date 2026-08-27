@@ -26,7 +26,8 @@ class UserSettings:
             "window_maximized": False,
             "auto_create_download_folder": True,
             "remember_window_state": True,
-            "auto_update_libraries": False
+            "auto_update_libraries": False,
+            "tv_format": False
         }
         
         # Load or create settings
@@ -93,7 +94,14 @@ class UserSettings:
             return True
         except Exception:
             return False
-
+    
+    def get_tv_format(self):
+        """Get TV format setting (True = MKV, False = MP4)"""
+        return bool(self.get("tv_format", False))
+    
+    def set_tv_format(self, enabled):
+        """Set TV format setting"""
+        self.set("tv_format", bool(enabled))
 
 # Global settings instance
 user_settings = UserSettings()

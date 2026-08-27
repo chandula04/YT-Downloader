@@ -283,6 +283,8 @@ class FFmpegHandler:
                 "FFmpeg is required but not found. Please install FFmpeg and add it to your PATH."
             )
         
+        is_mkv = str(output_path).lower().endswith('.mkv')
+
         # Build command for direct stream copy (fast, no quality loss)
         cmd = [
             str(ffmpeg_path),
@@ -293,12 +295,13 @@ class FFmpegHandler:
             '-map', '1:a:0',
             '-c:v', 'copy',  # Copy video stream without re-encoding
             '-c:a', 'copy',  # Copy audio stream without re-encoding
-            '-movflags', FFMPEG_MOVFLAGS,
-            '-y', str(output_path)
         ]
+        if not is_mkv and FFMPEG_MOVFLAGS:
+            cmd.extend(['-movflags', FFMPEG_MOVFLAGS])
+        cmd.extend(['-y', str(output_path)])
         
         try:
-            FFmpegHandler._run_ffmpeg_command(cmd, progress_callback, "Merging")
+            FFmpegHandler._run_ffmpeg_command(cmd, progress_callback, "Merging to MKV" if is_mkv else "Merging")
             if progress_callback:
                 progress_callback(100, "Merge completed!")
         except FileNotFoundError:
@@ -307,16 +310,90 @@ class FFmpegHandler:
             )
         except subprocess.TimeoutExpired as timeout_error:
             raise timeout_error
-        except subprocess.CalledProcessError as called_error:
+        except Exception as called_error:
+            # If direct copy failed and target is MKV, try safe re-encode fallback
+            if is_mkv:
+                try:
+                    fallback_cmd = [
+                        str(ffmpeg_path),
+                        '-hide_banner',
+                        '-i', str(video_path),
+                        '-i', str(audio_path),
+                        '-map', '0:v:0',
+                        '-map', '1:a:0',
+                        '-c:v', FFMPEG_VIDEO_CODEC,
+                        '-crf', str(FFMPEG_TV_CRF or 20),
+                        '-preset', FFMPEG_VIDEO_PRESET,
+                        '-c:a', FFMPEG_AUDIO_CODEC,
+                        '-b:a', '192k',
+                        '-y', str(output_path)
+                    ]
+                    FFmpegHandler._run_ffmpeg_command(fallback_cmd, progress_callback, "Encoding to MKV")
+                    if progress_callback:
+                        progress_callback(100, "Merge completed!")
+                    return
+                except Exception:
+                    pass
+
             raise subprocess.CalledProcessError(
-                called_error.returncode,
-                called_error.cmd,
-                f"FFmpeg failed to merge the files: {called_error.stderr or called_error.output}"
+                getattr(called_error, 'returncode', 1),
+                cmd,
+                f"FFmpeg failed to merge the files: {called_error}"
             )
+
+    @staticmethod
+    def convert_to_mkv(input_path, output_path=None, progress_callback=None):
+        """
+        Convert/remux any video file to MKV format using FFmpeg.
+        First attempts fast direct stream copy without re-encoding;
+        falls back to high quality H.264 + AAC encoding if stream copy fails.
+        """
+        ffmpeg_path = FFmpegHandler.get_ffmpeg_path()
+        if not ffmpeg_path:
+            raise FileNotFoundError("FFmpeg is required but not found.")
+
+        input_p = Path(input_path)
+        if not input_p.exists():
+            raise FileNotFoundError(f"Input file not found: {input_path}")
+
+        if output_path is None:
+            output_path = str(input_p.with_suffix('.mkv'))
+
+        # Try fast direct stream copy first (instant, 100% loss-free)
+        cmd_copy = [
+            str(ffmpeg_path),
+            '-hide_banner',
+            '-i', str(input_path),
+            '-c', 'copy',
+            '-y', str(output_path)
+        ]
+        try:
+            FFmpegHandler._run_ffmpeg_command(cmd_copy, progress_callback, "Remuxing to MKV")
+            if progress_callback:
+                progress_callback(100, "Conversion completed!")
+            return output_path
+        except Exception:
+            # Fallback to high-quality re-encoding if stream copy fails
+            cmd_encode = [
+                str(ffmpeg_path),
+                '-hide_banner',
+                '-i', str(input_path),
+                '-c:v', FFMPEG_VIDEO_CODEC,
+                '-crf', str(FFMPEG_TV_CRF or 20),
+                '-preset', FFMPEG_VIDEO_PRESET,
+                '-c:a', FFMPEG_AUDIO_CODEC,
+                '-b:a', '192k',
+                '-y', str(output_path)
+            ]
+            FFmpegHandler._run_ffmpeg_command(cmd_encode, progress_callback, "Converting to MKV")
+            if progress_callback:
+                progress_callback(100, "Conversion completed!")
+            return output_path
 
     @staticmethod
     def _build_merge_command(ffmpeg_path, video_path, audio_path, output_path, tv_profile_enabled):
         """Build FFmpeg command respecting optimization preferences."""
+        is_mkv = str(output_path).lower().endswith('.mkv')
         cmd = [
             ffmpeg_path,
             '-hide_banner',
@@ -327,7 +404,8 @@ class FFmpegHandler:
         ]
         if tv_profile_enabled:
             cmd.extend(['-c:v', FFMPEG_VIDEO_CODEC])
-            cmd.extend(['-tag:v', 'avc1'])
+            if not is_mkv:
+                cmd.extend(['-tag:v', 'avc1'])
             if FFMPEG_TV_CRF is not None:
                 cmd.extend(['-crf', str(FFMPEG_TV_CRF)])
             if FFMPEG_VIDEO_PRESET:
@@ -372,7 +450,7 @@ class FFmpegHandler:
         else:
             cmd.extend(['-c:v', 'copy', '-c:a', 'copy'])
 
-        if FFMPEG_MOVFLAGS:
+        if not is_mkv and FFMPEG_MOVFLAGS:
             cmd.extend(['-movflags', FFMPEG_MOVFLAGS])
         cmd.extend(['-y', output_path])
         return cmd

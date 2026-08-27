@@ -55,7 +55,7 @@ build_installer.bat
 4. Creates installer (if Inno Setup installed)
 
 **Build Output:**
-- `dist\YouTube Downloader.exe` - **Use this for releases!** (25-35 MB)
+- `dist\YouTubeDownloader.exe` - **Use this for release sharing** (single-file portable app)
 - `installer\Output\YouTubeDownloaderSetup.exe` - Optional installer
 
 **Build Time**: ~2-5 minutes depending on your PC
@@ -67,7 +67,7 @@ build_installer.bat
 ### Checklist - Test Everything!
 
 **Basic Tests:**
-- [ ] Double-click `dist\YouTube Downloader.exe` - app opens
+- [ ] Double-click `dist\YouTubeDownloader.exe` - app opens
 - [ ] Load a video (paste YouTube URL)
 - [ ] Preview shows correctly with thumbnail
 - [ ] Quality options appear
@@ -180,7 +180,7 @@ If you have v1.0.0:
 - ✅ Windows 10/11 (64-bit or 32-bit)
 - ✅ Internet connection
 - ✅ ~35 MB disk space
-- ✅ No additional software needed!
+- ✅ No Python, pip, FFmpeg, or separate Node.js installation needed
 
 ## 🆘 Troubleshooting
 
@@ -203,7 +203,7 @@ If you have v1.0.0:
 ### Step 5: Upload the Executable
 
 1. Scroll down to **"Attach binaries by dropping them here or selecting them"**
-2. **Drag and drop** `dist\YouTube Downloader.exe` OR click to browse
+2. **Drag and drop** `dist\YouTubeDownloader.exe` OR click to browse
 3. Wait for upload to complete (you'll see progress bar)
 4. Confirm file appears with green checkmark ✅
 
@@ -228,7 +228,7 @@ Click **"Publish release"** (green button at bottom)
    - ✅ Release title and tag are correct
    - ✅ Description looks good
    - ✅ .exe file is attached and downloadable
-   - ✅ File size is correct (~25-35 MB)
+   - ✅ Share only `YouTubeDownloader.exe` for plug-and-play use
 
 ---
 
@@ -274,13 +274,13 @@ When your friend sees **"This app can't run on your PC"**, it means:
 1. **Build 64-bit Version** (on 64-bit Windows):
    ```cmd
    build_installer.bat
-   move "dist\YouTube Downloader.exe" "dist\YouTube Downloader_x64.exe"
+   move "dist\YouTubeDownloader.exe" "dist\YouTubeDownloader_x64.exe"
    ```
 
 2. **Build 32-bit Version** (on 32-bit Windows OR use 32-bit Python):
    ```cmd
    build_installer.bat
-   move "dist\YouTube Downloader.exe" "dist\YouTube Downloader_x86.exe"
+   move "dist\YouTubeDownloader.exe" "dist\YouTubeDownloader_x86.exe"
    ```
 
 3. **Upload BOTH to GitHub Release**
@@ -411,7 +411,7 @@ Before each release, verify:
 - [ ] Build completed successfully
 - [ ] Executable tested on your PC
 - [ ] Executable tested on different PC (if possible)
-- [ ] File size is reasonable (~25-35 MB)
+- [ ] File size is reasonable for the Python, yt-dlp, and FFmpeg self-contained build
 - [ ] GitHub release tag matches version
 - [ ] Release notes written clearly
 - [ ] .exe uploaded to release

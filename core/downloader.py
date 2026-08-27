@@ -139,7 +139,7 @@ class DownloadManager:
     
     def download_single_video(self, video, quality_str, is_audio, output_path):
         """
-        Download a single video using adaptive streams for best quality
+        Download a single video using yt-dlp for current YouTube compatibility
         
         Args:
             video (YouTube): YouTube video object
@@ -147,6 +147,30 @@ class DownloadManager:
             is_audio (bool): Whether to download as audio only
             output_path (str): Output directory path
         """
+        # pytubefix is still used for metadata and previewing, but its direct
+        # stream URLs are currently rejected by YouTube's PoToken/SABR checks.
+        from utils.ytdlp_handler import YtDlpHandler
+
+        video_url = getattr(video, "watch_url", None)
+        if not video_url:
+            video_id = getattr(video, "video_id", None)
+            if video_id:
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+        if not video_url:
+            raise Exception("Could not determine the YouTube URL for this video")
+
+        YtDlpHandler.download_video(
+            video_url,
+            output_path,
+            quality_str,
+            is_audio,
+            self.progress_callback,
+            self.ffmpeg_handler.get_ffmpeg_path(),
+            cancel_callback=lambda: self.stop_flag
+        )
+        return
+
         if is_audio:
             self._download_audio(video, output_path)
         else:
@@ -244,7 +268,8 @@ class DownloadManager:
             raise KeyboardInterrupt("Download cancelled")
         
         # Merge with FFmpeg with progress tracking
-        output_filename = f"{safe_filename(video.title)}.mp4"
+        ext = ".mkv" if user_settings.get_tv_format() else ".mp4"
+        output_filename = f"{safe_filename(video.title)}{ext}"
         final_output_path = os.path.join(output_path, output_filename)
         
         try:
@@ -331,7 +356,8 @@ class DownloadManager:
                     self.ffmpeg_handler.cleanup_default_temp_files(output_path)
                     raise Exception("Download cancelled")
                 
-                output_file = os.path.join(output_path, safe_name + '.mp4')
+                ext = ".mkv" if user_settings.get_tv_format() else ".mp4"
+                output_file = os.path.join(output_path, safe_name + ext)
                 self.ffmpeg_handler.merge_video_audio(
                     video_path,
                     audio_path,
@@ -339,9 +365,13 @@ class DownloadManager:
                 )
                 print(f"✅ Adaptive video merged: {output_file}")
             else:
-                final_path = os.path.join(output_path, safe_name + '.mp4')
+                ext = ".mkv" if user_settings.get_tv_format() else ".mp4"
+                final_path = os.path.join(output_path, safe_name + ext)
                 try:
-                    os.rename(video_path, final_path)
+                    if ext == ".mkv":
+                        self.ffmpeg_handler.convert_to_mkv(video_path, final_path)
+                    else:
+                        os.rename(video_path, final_path)
                     print(f"✅ Video-only file saved: {final_path}")
                 except:
                     print(f"✅ Video saved: {video_path}")
@@ -577,99 +607,44 @@ class DownloadManager:
                     error_callback("Download cancelled")
                 return
             
-            # Handle specific HTTP 403 Forbidden error with retry
-            if "403" in error_message or "Forbidden" in error_message:
-                print("🔄 Detected 403 error, attempting download-optimized retry...")
-                try:
-                    # Try with download-optimized client strategies
-                    video = self.youtube_handler.load_video_with_download_retry(video_url)
-                    self.download_single_video(video, quality_str, is_audio, file_manager.get_download_path())
-                    
+            # Direct yt-dlp fallback for any error (403, timeout, SABR/PoToken, client failure, etc.)
+            print(f"🔄 Encountered issue: {error_message[:80]} - initiating robust yt-dlp fallback...")
+            try:
+                from utils.ytdlp_handler import YtDlpHandler
+                ffmpeg_path = self.ffmpeg_handler.get_ffmpeg_path()
+                ok = YtDlpHandler.download_video(
+                    video_url,
+                    file_manager.get_download_path(),
+                    quality_str,
+                    is_audio,
+                    self.progress_callback,
+                    ffmpeg_path,
+                    cancel_callback=lambda: self.stop_flag
+                )
+                if ok:
                     if success_callback:
                         success_callback("Download completed!")
                     return
-                
-                except KeyboardInterrupt:
-                    # User cancelled during retry - clean up
-                    self.ffmpeg_handler.cleanup_default_temp_files(file_manager.get_download_path())
-                    if error_callback:
-                        error_callback("Download cancelled")
-                    return
-                    
-                except Exception as retry_error:
-                    print(f"❌ Download retry also failed: {retry_error}")
-                    print("🛡️ Falling back to yt-dlp (robust mode)...")
-                    try:
-                        from utils.ytdlp_handler import YtDlpHandler
-                        ffmpeg_path = self.ffmpeg_handler.get_ffmpeg_path()
-                        ok = YtDlpHandler.download_video(
-                            video_url,
-                            file_manager.get_download_path(),
-                            quality_str,
-                            is_audio,
-                            self.progress_callback,
-                            ffmpeg_path,
-                            cancel_callback=lambda: self.stop_flag
-                        )
-                        if ok:
-                            if success_callback:
-                                success_callback("Download completed!")
-                            return
-                        else:
-                            raise Exception("yt-dlp fallback failed")
-                    except KeyboardInterrupt:
-                        # User cancelled during yt-dlp fallback - clean up
-                        self.ffmpeg_handler.cleanup_default_temp_files(file_manager.get_download_path())
-                        if error_callback:
-                            error_callback("Download cancelled")
-                        return
-                    except Exception as yerr:
-                        print(f"❌ yt-dlp fallback failed: {yerr}")
-                        enhanced_error = (
-                            "🚫 YouTube Access Blocked (HTTP 403: Forbidden)\n\n"
-                            "We tried: standard clients, download-optimized clients, and yt-dlp fallback,\n"
-                            "but all methods were blocked or failed.\n\n"
-                            "💡 Try:\n"
-                            "• Wait 5-10 minutes and try again\n"
-                            "• Use a VPN or different network\n"
-                            "• Try a different video (private/region-restricted videos may fail)\n"
-                            "• Update and relaunch the app\n"
-                        )
-                        if error_callback:
-                            error_callback(enhanced_error)
-                        return
-            
-            # Handle other common YouTube errors
-            elif "throttling" in error_message.lower():
-                enhanced_error = (
-                    "🐌 YouTube Throttling Detected\n\n"
-                    "YouTube is slowing down download requests.\n\n"
-                    "💡 Solutions:\n"
-                    "1. Wait 15-30 minutes before trying again\n"
-                    "2. Try a different video\n"
-                    "3. Use a VPN if available\n"
-                    "4. Check for pytubefix updates\n\n"
-                    "This is temporary - try again later."
-                )
+                else:
+                    raise Exception("yt-dlp download returned unsuccessful")
+            except KeyboardInterrupt:
+                self.ffmpeg_handler.cleanup_default_temp_files(file_manager.get_download_path())
+                if error_callback:
+                    error_callback("Download cancelled")
+                return
+            except Exception as yerr:
+                print(f"❌ yt-dlp fallback failed: {yerr}")
+                if "private" in str(yerr).lower() or "unavailable" in str(yerr).lower():
+                    enhanced_error = (
+                        "🔒 Video Access Restricted\n\n"
+                        "This video is private, deleted, or requires sign-in to view.\n"
+                        "Please try a publicly accessible video."
+                    )
+                else:
+                    enhanced_error = f"Download failed: {str(yerr)}"
                 if error_callback:
                     error_callback(enhanced_error)
-            elif "private" in error_message.lower() or "unavailable" in error_message.lower():
-                enhanced_error = (
-                    "🔒 Video Access Restricted\n\n"
-                    "This video is private, deleted, or not available.\n\n"
-                    "Possible reasons:\n"
-                    "• Video is set to private\n"
-                    "• Video has been deleted\n"
-                    "• Video is region-restricted\n"
-                    "• Video requires sign-in to view\n\n"
-                    "Try a different video that is publicly accessible."
-                )
-                if error_callback:
-                    error_callback(enhanced_error)
-            else:
-                # Generic error with original message
-                if error_callback:
-                    error_callback(f"Download failed: {error_message}")
+                return
                     
         except KeyboardInterrupt:
             if error_callback:

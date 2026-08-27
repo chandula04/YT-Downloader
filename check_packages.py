@@ -37,6 +37,7 @@ def smart_package_setup():
         ("setuptools", "setuptools"),
         ("customtkinter>=5.2.2", "customtkinter"),
         ("pytubefix", "pytubefix"), 
+        ("yt-dlp[default]", "yt_dlp"),
         ("Pillow", "PIL"),
         ("requests", "requests")
     ]
@@ -67,6 +68,7 @@ def smart_package_setup():
     try:
         import customtkinter
         import pytubefix
+        import yt_dlp
         import PIL
         import requests
         print("✅ All packages verified and ready!")

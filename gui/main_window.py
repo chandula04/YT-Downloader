@@ -3,6 +3,7 @@ Main application window for YouTube Downloader
 """
 
 import sys
+import os
 import customtkinter as ctk
 import threading
 from tkinter import messagebox
@@ -719,6 +720,19 @@ class MainWindow(ctk.CTk):
         )
         # Initially hidden
         self.cancel_button.pack_forget()
+
+        self.open_folder_button = ctk.CTkButton(
+            self.button_frame,
+            text="Open Folder",
+            command=self._open_download_folder,
+            height=50,
+            font=("Arial", 18),
+            fg_color="#1976D2",
+            hover_color="#1565C0",
+            corner_radius=8,
+            border_width=0
+        )
+        self.open_folder_button.pack_forget()
     
     def _setup_path_display(self):
         """Set up download path display"""
@@ -759,6 +773,18 @@ class MainWindow(ctk.CTk):
         if file_manager.set_download_path():
             path = file_manager.get_download_path()
             self.path_label.configure(text=f"Download Path: {path}")
+
+    def _open_download_folder(self):
+        """Open the configured download folder in the system file manager."""
+        download_path = file_manager.get_download_path()
+        if not download_path or not os.path.isdir(download_path):
+            messagebox.showerror("Folder unavailable", "The configured download folder does not exist.")
+            return
+
+        try:
+            os.startfile(download_path)
+        except OSError as error:
+            messagebox.showerror("Unable to open folder", str(error))
     
     def _animate_footer(self, label):
         """Animate footer with subtle glow effect"""
@@ -1355,6 +1381,7 @@ class MainWindow(ctk.CTk):
             batch_mode (bool): Whether this is a batch download
         """
         if downloading:
+            self.open_folder_button.pack_forget()
             self.download_button.pack_forget()
             self.download_selected_button.pack_forget()
             self.cancel_button.pack(side="right", padx=(10, 0), fill="x", expand=True)
@@ -1474,8 +1501,10 @@ class MainWindow(ctk.CTk):
         # Show completion message
         if success:
             self.progress_tracker.set_success(message)
+            self.open_folder_button.pack(side="right", padx=(5, 0), fill="x", expand=True)
             messagebox.showinfo("Success", message)
         else:
+            self.open_folder_button.pack_forget()
             if message == "Download cancelled":
                 messagebox.showinfo("Cancelled", message)
             elif "ffmpeg" in message.lower():

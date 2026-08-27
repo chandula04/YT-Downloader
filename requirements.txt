@@ -1,21 +1,19 @@
 # YouTube Downloader - Dependencies
 
-# Python 3.13 compatibility
+# Python compatibility
 setuptools>=68.0.0
 
 # GUI Framework
 customtkinter>=5.2.2
 
-# YouTube downloading (updated for better anti-bot handling)
+# YouTube downloading
 pytubefix>=6.0.0
-yt-dlp>=2024.9.27
+yt-dlp>=2025.1.15
 
 # Image processing
 Pillow>=10.0.0
 
-# HTTP requests
+# HTTP requests & networking
 requests>=2.31.0
 urllib3>=2.0.0
-
-# Additional dependencies that might be needed
-# ffmpeg-python>=0.2.0  # Optional: for advanced FFmpeg operations
+curl_cffi>=0.16.0

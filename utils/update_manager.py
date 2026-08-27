@@ -14,7 +14,7 @@ def update_download_libraries():
     if getattr(sys, "frozen", False):
         return False, "Updates are disabled in packaged app mode."
 
-    packages = ["pytubefix", "yt-dlp"]
+    packages = ["pytubefix", "yt-dlp[default]"]
     cmd = [sys.executable, "-m", "pip", "install", "--upgrade", *packages]
 
     try:
@@ -37,7 +37,7 @@ def update_download_libraries_stream(progress_callback=None):
     if getattr(sys, "frozen", False):
         return False, "Updates are disabled in packaged app mode."
 
-    packages = ["pytubefix", "yt-dlp"]
+    packages = ["pytubefix", "yt-dlp[default]"]
     cmd = [sys.executable, "-m", "pip", "install", "--upgrade", *packages]
 
     try:

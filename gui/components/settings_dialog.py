@@ -106,6 +106,9 @@ class SettingsDialog(ctk.CTkToplevel):
         # Path Section
         self._setup_path_section(content_frame)
         
+        # TV Format Section (MKV Compatibility)
+        self._setup_tv_format_section(content_frame)
+        
         # Library Updates Section (only in development mode, not portable)
         if not self.is_portable:
             self._setup_update_section(content_frame)
@@ -632,6 +635,47 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         browse_button.pack(side="right")
 
+    def _setup_tv_format_section(self, parent):
+        """Setup TV format (MKV Compatibility) section"""
+        tv_frame = ctk.CTkFrame(parent)
+        tv_frame.pack(fill="x", pady=(0, 20))
+
+        # Section header
+        header_label = ctk.CTkLabel(
+            tv_frame, 
+            text="📺 TV Format (MKV Compatibility)", 
+            font=("Arial", 18, "bold")
+        )
+        header_label.pack(anchor="w", padx=20, pady=(20, 10))
+
+        # Explanatory description
+        desc_label = ctk.CTkLabel(
+            tv_frame,
+            text="Enable this option if your TV or media player only plays .mkv files and cannot play standard .mp4 files.\n"
+                 "When enabled, FFmpeg will automatically merge and package downloaded videos into MKV (.mkv) format.",
+            font=("Arial", 12),
+            text_color="#A0A0A0",
+            wraplength=680,
+            justify="left"
+        )
+        desc_label.pack(anchor="w", padx=20, pady=(0, 15))
+
+        options_frame = ctk.CTkFrame(tv_frame, fg_color="transparent")
+        options_frame.pack(fill="x", padx=20, pady=(0, 20))
+
+        self.tv_format_var = ctk.BooleanVar(value=user_settings.get_tv_format())
+
+        self.tv_format_switch = ctk.CTkSwitch(
+            options_frame,
+            text="Enable TV Format (.mkv output instead of .mp4)",
+            variable=self.tv_format_var,
+            font=("Arial", 14, "bold"),
+            switch_width=48,
+            switch_height=24,
+            progress_color="#4CAF50"
+        )
+        self.tv_format_switch.pack(anchor="w", pady=5)
+
     def _setup_update_section(self, parent):
         """Setup library updates section"""
         update_frame = ctk.CTkFrame(parent)
@@ -775,6 +819,10 @@ class SettingsDialog(ctk.CTkToplevel):
             # Save path
             new_path = self.path_var.get()
             user_settings.set_download_path(new_path)
+
+            # Save TV format (MKV)
+            new_tv_format = self.tv_format_var.get()
+            user_settings.set_tv_format(new_tv_format)
 
             # Ensure download path exists
             if not user_settings.ensure_download_path_exists():

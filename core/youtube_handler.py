@@ -9,6 +9,24 @@ from io import BytesIO
 from PIL import Image
 
 
+class YtDlpVideoWrapper:
+    """Wrapper that mimics pytubefix YouTube object using yt-dlp metadata."""
+    def __init__(self, url, info_dict):
+        self.watch_url = url
+        raw = info_dict.get('raw_info') or {}
+        self.video_id = raw.get('id') or (url.split('v=')[-1].split('&')[0] if 'v=' in url else '')
+        self.title = info_dict.get('title') or 'Unknown Title'
+        self.author = info_dict.get('author') or 'Unknown Channel'
+        self.length = int(info_dict.get('duration') or 0)
+        self.thumbnail_url = info_dict.get('thumbnail_url') or ''
+        self.views = int(info_dict.get('views') or 0)
+        self.quality_options = info_dict.get('quality_options') or []
+        self.streams = []
+
+    def register_on_progress_callback(self, callback):
+        pass
+
+
 class YouTubeHandler:
     """Handles YouTube video and playlist operations"""
     
@@ -16,6 +34,33 @@ class YouTubeHandler:
         self.current_video = None
         self.current_playlist = None
         self.stream_cache = {}  # Cache streams by video URL for instant download
+
+    def _load_video_client_with_timeout(self, url, client_config, timeout_seconds=6):
+        """Load one pytubefix client with a hard timeout to keep UI responsive."""
+        import threading
+
+        result = {"video": None, "error": None}
+
+        def worker():
+            try:
+                result["video"] = YouTube(url, **client_config)
+                # Metadata probe only
+                _ = result["video"].title
+                _ = result["video"].length
+            except Exception as exc:
+                result["error"] = exc
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        thread.join(timeout_seconds)
+
+        if thread.is_alive():
+            raise TimeoutError(f"Timed out after {timeout_seconds}s")
+
+        if result["error"]:
+            raise result["error"]
+
+        return result["video"]
     
     def load_video_with_download_retry(self, url):
         """
@@ -74,33 +119,38 @@ class YouTubeHandler:
     
     def load_video(self, url):
         """
-        Load a single YouTube video with multiple client fallbacks
+        Load a single YouTube video with fast yt-dlp extraction and pytubefix fallback
         
         Args:
             url (str): YouTube video URL
             
         Returns:
-            YouTube: YouTube object
+            YouTube / YtDlpVideoWrapper: Video object
             
         Raises:
             Exception: If video loading fails
         """
         try:
-            # Updated client strategies to handle YouTube's latest anti-bot measures  
-            # Reordered to prioritize clients with better stream access
+            # 1. Primary Strategy: Fast and robust yt-dlp metadata extraction (1-2s, bypasses bot checks)
+            print("⚡ Extracting video metadata with yt-dlp...")
+            try:
+                from utils.ytdlp_handler import YtDlpHandler
+                info = YtDlpHandler.extract_info(url)
+                if info:
+                    self.current_video = YtDlpVideoWrapper(url, info)
+                    print(f"✅ Video loaded instantly: {self.current_video.title[:50]}...")
+                    print(f"⏱️ Duration: {self.current_video.length}s | Qualities: {len(self.current_video.quality_options)}")
+                    return self.current_video
+            except Exception as yt_err:
+                print(f"⚠️ Fast yt-dlp extraction skipped: {yt_err}")
+
+            # 2. Fallback Strategy: pytubefix clients with short timeouts
+            print("🔄 Falling back to alternative pytubefix clients...")
             clients_to_try = [
-                # iOS client often bypasses restrictions and has good stream access
-                {"use_oauth": False, "allow_oauth_cache": False, "client": "IOS"},
-                # Android client with no cache - reliable for streams
-                {"use_oauth": False, "allow_oauth_cache": False, "client": "ANDROID"},
-                # Web client with different user agent - good stream support
                 {"use_oauth": False, "allow_oauth_cache": False, "client": "WEB"},
-                # Android Music client
-                {"use_oauth": False, "allow_oauth_cache": False, "client": "ANDROID_MUSIC"},
-                # Basic fallback
-                {"use_oauth": False, "allow_oauth_cache": False},
-                # TV Embed client bypasses restrictions but often has stream issues (last)
-                {"use_oauth": False, "allow_oauth_cache": False, "client": "TV_EMBED"},
+                {"use_oauth": False, "allow_oauth_cache": False, "client": "IOS"},
+                {"use_oauth": False, "allow_oauth_cache": False, "client": "ANDROID"},
+                {"use_oauth": False, "allow_oauth_cache": False}
             ]
             
             last_error = None
@@ -109,9 +159,12 @@ class YouTubeHandler:
                     client_name = client_config.get("client", "DEFAULT")
                     print(f"🔄 Trying client {i+1}/{len(clients_to_try)}: {client_name}")
                     
-                    self.current_video = YouTube(url, **client_config)
-                    
-                    # Test if we can access basic properties
+                    self.current_video = self._load_video_client_with_timeout(
+                        url,
+                        client_config,
+                        timeout_seconds=3
+                    )
+
                     title = self.current_video.title
                     length = self.current_video.length
                     
@@ -119,41 +172,15 @@ class YouTubeHandler:
                     print(f"📹 Title: {title[:50]}...")
                     print(f"⏱️ Duration: {length}s")
                     
-                    # Test stream access (critical for download functionality)
-                    try:
-                        streams = self.current_video.streams.filter(file_extension='mp4')
-                        if streams and len(streams) > 0:
-                            print(f"🎬 {client_name} has {len(streams)} streams available")
-                            return self.current_video
-                        else:
-                            print(f"⚠️ {client_name} loaded video but no streams found, trying next client...")
-                            continue
-                            
-                    except Exception as stream_error:
-                        print(f"❌ {client_name} video loaded but streams failed: {str(stream_error)[:50]}...")
-                        # If this is TV_EMBED with stream issues, it's expected
-                        if client_name == "TV_EMBED":
-                            print(f"ℹ️ {client_name} has known stream access issues")
-                        # Continue to next client for better stream access
-                        continue
+                    return self.current_video
                     
                 except Exception as e:
                     last_error = e
                     error_msg = str(e)
                     print(f"❌ {client_name} client failed: {error_msg[:100]}...")
-                    
-                    # Skip to next client
                     continue
             
-            # If all clients fail, raise the last error with helpful message
-            print("❌ All client strategies failed")
-            print("💡 This might be due to:")
-            print("   - YouTube's anti-bot measures")
-            print("   - Video is private/restricted")
-            print("   - Network connectivity issues")
-            print("   - pytubefix needs updating")
-            
-            raise last_error or Exception("All client strategies failed to load video")
+            raise last_error or Exception("All video loading strategies failed")
             
         except Exception as e:
             error_msg = f"Failed to load video: {str(e)}"
@@ -267,40 +294,42 @@ class YouTubeHandler:
     
     def safe_load_video_from_url(self, video_url):
         """
-        Safely load a video from URL with multiple client strategies
+        Safely load a video from URL with fast yt-dlp first and fallback clients
         
         Args:
             video_url (str): YouTube video URL
             
         Returns:
-            YouTube: YouTube object or None if failed
+            YouTube / YtDlpVideoWrapper: Video object or None if failed
         """
-        # Use same improved client strategies as load_video
+        # 1. Primary: Fast yt-dlp extraction
+        try:
+            from utils.ytdlp_handler import YtDlpHandler
+            info = YtDlpHandler.extract_info(video_url)
+            if info:
+                return YtDlpVideoWrapper(video_url, info)
+        except Exception:
+            pass
+
+        # 2. Fallback: pytubefix clients
         clients_to_try = [
-            {"use_oauth": False, "allow_oauth_cache": False, "client": "IOS"},
-            {"use_oauth": False, "allow_oauth_cache": False, "client": "ANDROID"},
-            {"use_oauth": False, "allow_oauth_cache": False, "client": "TV_EMBED"},
             {"use_oauth": False, "allow_oauth_cache": False, "client": "WEB"},
-            {"use_oauth": False, "allow_oauth_cache": False, "client": "ANDROID_MUSIC"},
-            {"use_oauth": False, "allow_oauth_cache": False},
+            {"use_oauth": False, "allow_oauth_cache": False, "client": "ANDROID"},
+            {"use_oauth": False, "allow_oauth_cache": False}
         ]
         
         for i, client_config in enumerate(clients_to_try):
             try:
                 client_name = client_config.get("client", "DEFAULT")
-                print(f"🔄 Safe load trying {client_name}...")
-                
-                video = YouTube(video_url, **client_config)
-                # Test if we can access basic properties
-                _ = video.title  # This will fail if video is inaccessible
-                
-                print(f"✅ Safe load successful with {client_name}")
+                video = self._load_video_client_with_timeout(
+                    video_url,
+                    client_config,
+                    timeout_seconds=3
+                )
                 return video
-                
-            except Exception as e:
-                print(f"❌ Safe load {client_name} failed: {str(e)[:50]}...")
+            except Exception:
                 continue
-        
+
         print("❌ All safe load attempts failed")
         return None  # All clients failed
     
@@ -314,6 +343,9 @@ class YouTubeHandler:
         Returns:
             list: List of adaptive quality options only
         """
+        if hasattr(video, 'quality_options') and video.quality_options:
+            return video.quality_options
+
         try:
             # First, try to get streams with the current video object
             streams = None

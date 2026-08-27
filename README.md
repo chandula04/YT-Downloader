@@ -126,6 +126,9 @@ cd YT-Downloader
 # Install dependencies
 pip install -r requirements.txt
 
+# Install Node.js LTS separately if it is not already installed. yt-dlp uses it
+# to solve YouTube's current JavaScript player challenge.
+
 # Run the application
 python main.py
 ```
